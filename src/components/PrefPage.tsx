@@ -17,6 +17,9 @@ type Props = {
   formInitial: Partial<FormValues> | undefined;
   busy: boolean;
   onBack: () => void;
+  prevPref?: Prefecture | null;
+  nextPref?: Prefecture | null;
+  onNavPref?: (id: number) => void;
   onSelectSpot: (rec: RecordWithPhotos) => void;
   onStartAdd: () => void;
   onCancelAdd: () => void;
@@ -25,7 +28,7 @@ type Props = {
 
 export default function PrefPage({
   pref, records, adding, autoMsg, formInitial, busy,
-  onBack, onSelectSpot, onStartAdd, onCancelAdd, onCreate,
+  onBack, prevPref, nextPref, onNavPref, onSelectSpot, onStartAdd, onCancelAdd, onCreate,
 }: Props) {
   // 地図⇔写真の連動: 市区町村ポリゴン(沖縄はインセット投影のため非対応)
   const [munis, setMunis] = useState<Muni[] | null>(null);
@@ -73,10 +76,25 @@ export default function PrefPage({
       <div style={{ position: "absolute", right: -70, bottom: 60, width: 220, height: 200, pointerEvents: "none", opacity: 0.12, background: "radial-gradient(closest-side, var(--koke-deep), transparent 70%)" }} />
 
       <div className="card" style={{ maxWidth: "min(1760px, 94vw)", margin: "0 auto", position: "relative" }}>
-        <button onClick={onBack}
-          style={{ background: "none", border: "none", color: "var(--ink-faint)", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit", letterSpacing: "0.18em" }}>
-          ← 日本地図
-        </button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <button onClick={onBack}
+            style={{ background: "none", border: "none", color: "var(--ink-faint)", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit", letterSpacing: "0.18em" }}>
+            ← 日本地図
+          </button>
+          {/* 隣の県へ移動 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={() => prevPref && onNavPref?.(prevPref.id)} disabled={!prevPref}
+              aria-label={prevPref ? `${prevPref.name}へ` : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid var(--hairline)", background: "var(--paper-raise)", color: prevPref ? "var(--ink-soft)" : "var(--ink-faint)", fontSize: 12, padding: "5px 11px", cursor: prevPref ? "pointer" : "default", fontFamily: "inherit", opacity: prevPref ? 1 : 0.45, letterSpacing: "0.04em" }}>
+              ‹ {prevPref?.name ?? "—"}
+            </button>
+            <button onClick={() => nextPref && onNavPref?.(nextPref.id)} disabled={!nextPref}
+              aria-label={nextPref ? `${nextPref.name}へ` : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 5, border: "1px solid var(--hairline)", background: "var(--paper-raise)", color: nextPref ? "var(--ink-soft)" : "var(--ink-faint)", fontSize: 12, padding: "5px 11px", cursor: nextPref ? "pointer" : "default", fontFamily: "inherit", opacity: nextPref ? 1 : 0.45, letterSpacing: "0.04em" }}>
+              {nextPref?.name ?? "—"} ›
+            </button>
+          </div>
+        </div>
 
         <div className="pref-grid" style={{ marginTop: 6 }}>
         {/* ── 左: 地図シート ── */}

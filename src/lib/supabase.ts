@@ -2,7 +2,16 @@ import { createClient } from "@supabase/supabase-js";
 
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      // ログイン状態をブラウザに保存し、トークンを自動更新。
+      // 開発サーバー再起動やタブを閉じても記録が消えたように見えないようにする。
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
 );
 
 export type Visibility = "private" | "members" | "public";

@@ -44,6 +44,7 @@ export default function Home() {
   const [stamp, setStamp] = useState<{ pref: string; no: number; first: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
   const [pendingPref, setPendingPref] = useState<number | null>(null);
   const autoRef = useRef<HTMLInputElement>(null);
@@ -114,14 +115,20 @@ export default function Home() {
 
   // ── 写真から自動記録(EXIF → 国判定 → 日本なら県判定 → フォーム) ──
   const autoFromPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
     e.target.value = "";
+    // 位置は「最初にGPSが見つかった写真」で判定。日付は最初に取れたものを採用。
     let meta: Awaited<ReturnType<typeof readExif>> = {};
-    try { meta = await readExif(f); } catch {}
+    for (const file of files) {
+      let m: Awaited<ReturnType<typeof readExif>> = {};
+      try { m = await readExif(file); } catch {}
+      if (!meta.date && m.date) meta = { ...meta, date: m.date };
+      if (m.lat && m.lon) { meta = { ...meta, lat: m.lat, lon: m.lon }; break; }
+    }
     if (meta.lat && meta.lon) {
       const c = countryFromGPS(meta.lon, meta.lat);
-      const init = { taken_at: exifDateToISO(meta.date) ?? "", photos: [f] };
+      const init = { taken_at: exifDateToISO(meta.date) ?? "", photos: files };
       if (c?.code === JAPAN_CODE) {
         const p = prefFromGPS(meta.lon, meta.lat);
         if (p) {
@@ -240,6 +247,29 @@ export default function Home() {
 
   const overlays = (
     <>
+      {/* セッション切れ対策: 未ログインだと記録が取得できず「消えた」ように見えるため、
+          ログインへの導線を常に出す。ログインし直すと記録が復活する。 */}
+      {authReady && !session && (
+        showAuth ? (
+          <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,8,12,0.6)", overflowY: "auto" }}>
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowAuth(false)} aria-label="閉じる"
+                style={{ position: "fixed", top: 16, right: 18, zIndex: 91, background: "none", border: "none", color: "#EDE8DC", fontSize: 22, cursor: "pointer", fontFamily: "inherit", padding: 6 }}>
+                ×
+              </button>
+              <AuthForm />
+            </div>
+          </div>
+        ) : (
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 70, background: "var(--ink)", color: "var(--paper)", fontSize: 12.5, padding: "9px 16px", display: "flex", alignItems: "center", gap: 12, justifyContent: "center", letterSpacing: "0.04em" }}>
+            <span>ログインしていないため、記録が表示されません。</span>
+            <button onClick={() => setShowAuth(true)}
+              style={{ border: "1px solid var(--paper)", background: "transparent", color: "var(--paper)", fontSize: 12, padding: "3px 14px", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em" }}>
+              ログイン
+            </button>
+          </div>
+        )
+      )}
       {stamp && (
         <StampCelebration prefName={stamp.pref} no={stamp.no} first={stamp.first}
           onDone={() => setStamp(null)} />
@@ -295,7 +325,7 @@ export default function Home() {
             style={{ padding: "12px 26px", border: "1px solid rgba(237,232,220,0.4)", background: "rgba(11,14,20,0.55)", color: "#EDE8DC", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.18em" }}>
             写真から自動記録
           </button>
-          <input ref={autoRef} type="file" accept="image/jpeg,image/jpg,image/*" hidden onChange={autoFromPhoto} />
+          <input ref={autoRef} type="file" accept="image/jpeg,image/jpg,image/*" multiple hidden onChange={autoFromPhoto} />
           {autoMsg && (
             <div style={{ marginTop: 10, fontSize: 11.5, color: "#A39A87", padding: "0 24px", lineHeight: 1.8 }}>{autoMsg}</div>
           )}
@@ -438,6 +468,9 @@ export default function Home() {
           formInitial={formInitial}
           busy={busy}
           onBack={() => { resetEntryState(); setPref(null); }}
+          prevPref={prefByCode(pref.id - 1) ?? null}
+          nextPref={prefByCode(pref.id + 1) ?? null}
+          onNavPref={(id) => { const p = prefByCode(id); if (p) { resetEntryState(); setSpot(null); setPref(p); } }}
           onSelectSpot={setSpot}
           onStartAdd={() => { setFormInitial(undefined); setGps(null); setAdding(true); }}
           onCancelAdd={resetEntryState}
@@ -479,7 +512,7 @@ export default function Home() {
           style={{ padding: "12px 22px", border: "none", background: "var(--shu)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.14em" }}>
           写真から自動記録
         </button>
-        <input ref={autoRef} type="file" accept="image/jpeg,image/jpg,image/*" hidden onChange={autoFromPhoto} />
+        <input ref={autoRef} type="file" accept="image/jpeg,image/jpg,image/*" multiple hidden onChange={autoFromPhoto} />
         <button onClick={() => setView("shared")}
           style={{ padding: "12px 18px", border: "1px solid var(--ink)", background: "transparent", color: "var(--ink)", fontSize: 13, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.14em" }}>
           みんなの図鑑
