@@ -8,6 +8,7 @@ import PrefPage from "@/components/PrefPage";
 import CountryPage from "@/components/CountryPage";
 import SpotDetail from "@/components/SpotDetail";
 import SharedFeed from "@/components/SharedFeed";
+import SearchPage from "@/components/SearchPage";
 import GlobeView from "@/components/GlobeView";
 import SideMenu from "@/components/SideMenu";
 import StampCelebration from "@/components/StampCelebration";
@@ -15,6 +16,7 @@ import type { FormValues } from "@/components/RecordForm";
 import { supabase } from "@/lib/supabase";
 import { readExif, exifDateToISO } from "@/lib/exif";
 import { prefFromGPS } from "@/lib/geo";
+import { geocodePlace } from "@/lib/geocode";
 import { countryFromGPS, countryByCode, JAPAN_CODE, type Country } from "@/lib/world";
 import {
   fetchRecords, createRecord, updateRecord, deleteRecord, addPhoto,
@@ -23,7 +25,7 @@ import {
 import { captionOf, prefByCode, PREF_EN, type Prefecture } from "@/lib/prefectures";
 import Photo from "@/components/Photo";
 
-type View = "globe" | "japan" | "country" | "shared" | "log";
+type View = "globe" | "japan" | "country" | "shared" | "log" | "search";
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
@@ -155,6 +157,13 @@ export default function Home() {
       const prevCount = records.filter((r) =>
         isJP ? r.pref_code === pref!.id && r.country_code === JAPAN_CODE : r.country_code === code
       ).length;
+      // 写真にGPSが無ければ、場所名から座標を補完(踏破率・市区町村判定のため)
+      let coords: { lat: number; lng: number } | null = gps;
+      if (!coords && v.name.trim()) {
+        const q = isJP ? `${v.name} ${pref!.name}` : `${v.name} ${country!.name}`;
+        const g = await geocodePlace(q, { jpOnly: isJP });
+        if (g) coords = { lat: g.lat, lng: g.lon };
+      }
       await createRecord(
         {
           pref_code: isJP ? pref!.id : null,
@@ -162,8 +171,8 @@ export default function Home() {
           name: v.name,
           taken_at: v.taken_at || null,
           body: v.body,
-          lat: gps?.lat,
-          lng: gps?.lng,
+          lat: coords?.lat ?? null,
+          lng: coords?.lng ?? null,
           visibility: v.visibility,
           scout: Object.values(v.scout).some(Boolean) ? v.scout : null,
         },
@@ -242,6 +251,7 @@ export default function Home() {
         prefCounts={prefCounts}
         onGlobe={() => { setMenuOpen(false); resetEntryState(); setSpot(null); setPref(null); setCountry(null); setPendingPref(null); setFlyTo(null); setGlobeFromJapan(false); setView("globe"); }}
         onLog={() => { setMenuOpen(false); setSpot(null); setView("log"); }}
+        onSearch={() => { setMenuOpen(false); setSpot(null); setView("search"); }}
         onShared={() => { setMenuOpen(false); setSpot(null); setView("shared"); }}
         onLogout={() => { setMenuOpen(false); supabase.auth.signOut(); }}
         onCountry={navToCountry}
@@ -295,6 +305,15 @@ export default function Home() {
 
   if (view === "shared")
     return <>{overlays}<SharedFeed onBack={() => setView("globe")} /></>;
+
+  if (view === "search")
+    return (
+      <>
+        {overlays}
+        {errorBar}
+        <SearchPage records={records} onBack={() => setView("globe")} onSelectSpot={setSpot} />
+      </>
+    );
 
   // ── 記録詳細(日本・海外 共通) ──
   if (spot) {

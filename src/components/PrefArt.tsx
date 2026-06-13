@@ -14,12 +14,13 @@ type Props = {
   munis?: Muni[] | null;
   selectedMuni?: string | null; // タップで選択中のコード
   blinkMuni?: string | null;    // 写真ホバーで点滅させるコード
+  visitedMunis?: Set<string>;   // 記録のある市区町村(明るく点滅)
   onMuniTap?: (m: Muni) => void;
 };
 
 // 県の一枚絵: 古地図色のシルエットに、訪れた場所の地名が手書きで書き込まれていく
 // public/maps/{id}.png(AI生成の水彩アート地図)があれば、それを下敷きに使う
-export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, blinkMuni, onMuniTap }: Props) {
+export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, blinkMuni, visitedMunis, onMuniTap }: Props) {
   const [artUrl, setArtUrl] = useState<string | null>(null);
   const [hoverMuni, setHoverMuni] = useState<Muni | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
@@ -119,6 +120,17 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
           M ${vx + vw * 0.23 + k * 0.009} ${vy + vh * 0.55} v ${k * 0.01}`} />
       </g>
       </>)}
+
+      {/* 達成/未達成の塗り分け: 記録のある市区町村は明るく点滅、未達成は少し暗め */}
+      {munis && munis.map((m) => {
+        const on = visitedMunis?.has(m.code);
+        return (
+          <path key={"glow" + m.code} d={m.path}
+            fill={on ? "rgba(176,113,79,0.40)" : "rgba(38,32,26,0.30)"}
+            className={on ? "atlas-visited" : undefined}
+            pointerEvents="none" />
+        );
+      })}
 
       {/* 市区町村レイヤー(ヒット判定のみ・不可視)。アートはAI生成で数pxズレるため、
           表示は塗りでなく照準+地域名(座標ベース)で行う */}

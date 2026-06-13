@@ -109,6 +109,18 @@ body {
   filter: brightness(1.07);
 }
 
+/* 達成した場所: 明るくゆっくり点滅 / 未達成: 暗め(静止) */
+@keyframes atlas-glow {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
+}
+.atlas-visited {
+  animation: atlas-glow 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-visited { animation: none; opacity: 1; }
+}
+
 .card {
   animation: rise 0.35s ease both;
 }

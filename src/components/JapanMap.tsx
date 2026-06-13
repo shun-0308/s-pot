@@ -76,11 +76,11 @@ export default function JapanMap({ counts, onSelect }: Props) {
         return (
           <path
             key={p.id}
-            className="pref-path"
+            className={has ? "pref-path atlas-visited" : "pref-path"}
             d={p.d}
-            fill={has ? regionColor(p.id) : isHover ? "rgba(255,255,255,0.3)" : "rgba(8,32,52,0.1)"}
-            fillOpacity={has ? 0.82 : 1}
-            stroke={has ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.55)"}
+            fill={has ? regionColor(p.id) : isHover ? "rgba(255,255,255,0.3)" : "rgba(5,18,30,0.5)"}
+            fillOpacity={has ? 0.9 : 1}
+            stroke={has ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.4)"}
             strokeWidth={isHover ? 1.5 : 0.7}
             onPointerEnter={(e) => enter(p, e)}
             onPointerLeave={(e) => { if (e.pointerType === "mouse") setHover(null); }}

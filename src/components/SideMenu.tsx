@@ -11,6 +11,7 @@ type Props = {
   prefCounts: Record<number, number>;
   onGlobe: () => void;
   onLog: () => void;
+  onSearch: () => void;
   onShared: () => void;
   onLogout: () => void;
   onCountry: (code: string) => void; // 地球ズーム経由で国へ
@@ -35,7 +36,7 @@ const itemStyle: React.CSSProperties = {
 
 export default function SideMenu({
   open, onClose, countryCounts, prefCounts,
-  onGlobe, onLog, onShared, onLogout, onCountry, onPref,
+  onGlobe, onLog, onSearch, onShared, onLogout, onCountry, onPref,
 }: Props) {
   const [openRegion, setOpenRegion] = useState<number | null>(null);
 
@@ -88,6 +89,7 @@ export default function SideMenu({
         </button>
 
         <Cap>RECORDS</Cap>
+        <button style={itemStyle} onClick={onSearch}>記録をさがす</button>
         <button style={itemStyle} onClick={onLog}>ログ一覧</button>
         <button style={itemStyle} onClick={onShared}>みんなの図鑑</button>
 

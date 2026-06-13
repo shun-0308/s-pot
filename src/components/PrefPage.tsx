@@ -104,6 +104,7 @@ export default function PrefPage({
         <div style={{ margin: "14px auto 0" }}>
           <PrefArt pref={pref} records={records} onSelect={onSelectSpot}
             munis={munis} selectedMuni={muniSel?.code ?? null} blinkMuni={blinkMuni}
+            visitedMunis={new Set(recMuni.values())}
             onMuniTap={(m) => setMuniSel((cur) => (cur?.code === m.code ? null : m))} />
         </div>
 
