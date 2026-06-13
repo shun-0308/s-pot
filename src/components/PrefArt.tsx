@@ -127,10 +127,8 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
       </>)}
 
       {/* 達成/未達成の演出: アートはAI生成で数pxズレるため、ポリゴン塗りは使わない。
-          代わりに全体をうっすら暗くし、記録(GPS)のある地点だけ温かく光らせて点滅させる。 */}
-      {pins.length > 0 && (
-        <rect x={vx} y={vy} width={vw} height={vh} fill="#241c14" opacity="0.22" pointerEvents="none" />
-      )}
+          未達成(=記録なし)は常に少し暗く、達成(GPSのある記録)地点だけ温かく光らせて点滅させる。 */}
+      <rect x={vx} y={vy} width={vw} height={vh} fill="#241c14" opacity="0.28" pointerEvents="none" />
       {pins.map(({ r, x, y }) => (
         <circle key={"glow" + r.id} className="atlas-visited" pointerEvents="none"
           cx={x} cy={y} r={k * 0.05} fill={`url(#spotGlow-${pref.id})`} />
