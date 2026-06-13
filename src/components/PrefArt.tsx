@@ -14,13 +14,12 @@ type Props = {
   munis?: Muni[] | null;
   selectedMuni?: string | null; // タップで選択中のコード
   blinkMuni?: string | null;    // 写真ホバーで点滅させるコード
-  visitedMunis?: Set<string>;   // 記録のある市区町村(明るく点滅)
   onMuniTap?: (m: Muni) => void;
 };
 
 // 県の一枚絵: 古地図色のシルエットに、訪れた場所の地名が手書きで書き込まれていく
 // public/maps/{id}.png(AI生成の水彩アート地図)があれば、それを下敷きに使う
-export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, blinkMuni, visitedMunis, onMuniTap }: Props) {
+export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, blinkMuni, onMuniTap }: Props) {
   const [artUrl, setArtUrl] = useState<string | null>(null);
   const [hoverMuni, setHoverMuni] = useState<Muni | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
@@ -79,6 +78,12 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
           <feTurbulence type="fractalNoise" baseFrequency={10 / k} numOctaves="3" seed={pref.id} result="n" />
           <feDisplacementMap in="SourceGraphic" in2="n" scale={k * 0.02} />
         </filter>
+        {/* 達成スポットの温かい光(中心が明るく外へ溶ける) */}
+        <radialGradient id={`spotGlow-${pref.id}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FFE7B0" stopOpacity="0.85" />
+          <stop offset="40%" stopColor="#F4C27A" stopOpacity="0.45" />
+          <stop offset="100%" stopColor="#F4C27A" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
       {/* 水彩アート地図(あれば最優先で下敷きに。比率は変えず無加工で表示) */}
@@ -121,16 +126,15 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
       </g>
       </>)}
 
-      {/* 達成/未達成の塗り分け: 記録のある市区町村は明るく点滅、未達成は少し暗め */}
-      {munis && munis.map((m) => {
-        const on = visitedMunis?.has(m.code);
-        return (
-          <path key={"glow" + m.code} d={m.path}
-            fill={on ? "rgba(176,113,79,0.40)" : "rgba(38,32,26,0.30)"}
-            className={on ? "atlas-visited" : undefined}
-            pointerEvents="none" />
-        );
-      })}
+      {/* 達成/未達成の演出: アートはAI生成で数pxズレるため、ポリゴン塗りは使わない。
+          代わりに全体をうっすら暗くし、記録(GPS)のある地点だけ温かく光らせて点滅させる。 */}
+      {pins.length > 0 && (
+        <rect x={vx} y={vy} width={vw} height={vh} fill="#241c14" opacity="0.22" pointerEvents="none" />
+      )}
+      {pins.map(({ r, x, y }) => (
+        <circle key={"glow" + r.id} className="atlas-visited" pointerEvents="none"
+          cx={x} cy={y} r={k * 0.05} fill={`url(#spotGlow-${pref.id})`} />
+      ))}
 
       {/* 市区町村レイヤー(ヒット判定のみ・不可視)。アートはAI生成で数pxズレるため、
           表示は塗りでなく照準+地域名(座標ベース)で行う */}
