@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RecordWithPhotos } from "@/lib/records";
 import type { Visibility, ScoutInfo } from "@/lib/supabase";
 
@@ -8,8 +8,7 @@ export type FormValues = {
   name: string;
   taken_at: string; // "YYYY-MM-DD" or ""
   body: string;
-  photo: File | null;
-  photoPreview: string | null;
+  photos: File[]; // 複数枚まとめてアップロードできる
   visibility: Visibility;
   scout: ScoutInfo;
 };
@@ -57,8 +56,7 @@ export default function RecordForm({ title, initial, existing, busy, onSubmit, o
     name: initial?.name ?? "",
     taken_at: initial?.taken_at ?? "",
     body: initial?.body ?? "",
-    photo: initial?.photo ?? null,
-    photoPreview: initial?.photoPreview ?? null,
+    photos: initial?.photos ?? [],
     visibility: initial?.visibility ?? "private",
     scout: initial?.scout ?? {},
   });
@@ -87,24 +85,53 @@ export default function RecordForm({ title, initial, existing, busy, onSubmit, o
   );
 
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => setV((p) => ({ ...p, photo: f, photoPreview: r.result as string }));
-    r.readAsDataURL(f);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    // 既存の選択に追加(複数回に分けて選んでも貯まる)
+    setV((p) => ({ ...p, photos: [...p.photos, ...files] }));
+    e.target.value = ""; // 同じファイルを選び直せるようにリセット
   };
+  const removePhoto = (i: number) =>
+    setV((p) => ({ ...p, photos: p.photos.filter((_, j) => j !== i) }));
 
-  const existingPhoto = existing?.photos[0]?.url ?? null;
-  const preview = v.photoPreview ?? existingPhoto;
+  // 選択中ファイルのプレビューURL(変更時に作り直し、後片付けも)
+  const previews = useMemo(
+    () => v.photos.map((f) => URL.createObjectURL(f)),
+    [v.photos]
+  );
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+
+  const existingPhotos = existing?.photos.map((p) => p.url).filter(Boolean) as string[] | undefined;
 
   return (
     <div className="card" style={{ borderTop: "1px solid var(--ink)", paddingTop: 18, marginTop: 6 }}>
       <div className="caption" style={{ marginBottom: 4 }}>NEW ENTRY</div>
       <div className="tz-serif" style={{ fontWeight: 700, fontSize: 17, marginBottom: 14 }}>{title}</div>
 
-      {preview && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={preview} alt="" style={{ width: "100%", height: 200, objectFit: "cover", display: "block", marginBottom: 12 }} />
+      {/* 既存写真(編集時)。差し替えではなく追加なので残して表示 */}
+      {existingPhotos && existingPhotos.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 6, marginBottom: 10 }}>
+          {existingPhotos.map((u, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={"e" + i} src={u} alt="" style={{ width: "100%", height: 96, objectFit: "cover", display: "block", borderRadius: 2 }} />
+          ))}
+        </div>
+      )}
+
+      {/* これからアップロードする写真(複数可・個別に外せる) */}
+      {previews.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 6, marginBottom: 12 }}>
+          {previews.map((u, i) => (
+            <div key={"n" + i} style={{ position: "relative" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={u} alt="" style={{ width: "100%", height: 96, objectFit: "cover", display: "block", borderRadius: 2 }} />
+              <button onClick={() => removePhoto(i)} aria-label="この写真を外す"
+                style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20, lineHeight: "18px", textAlign: "center", padding: 0, border: "none", borderRadius: "50%", background: "rgba(46,42,37,0.72)", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       <input style={inputStyle} placeholder="場所の名前(例: 尾道・千光寺)" value={v.name}
@@ -185,9 +212,9 @@ export default function RecordForm({ title, initial, existing, busy, onSubmit, o
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <button onClick={() => fileRef.current?.click()}
           style={{ padding: "10px 16px", border: "1px dashed var(--ink-faint)", background: "transparent", color: "var(--ink-soft)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}>
-          {v.photo ? "写真を選択済み ✓" : existingPhoto ? "写真を差し替える" : "写真を選ぶ"}
+          {v.photos.length ? `写真 ${v.photos.length}枚 ✓ ・追加で選ぶ` : "写真を選ぶ(複数可)"}
         </button>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={pick} />
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={pick} />
         <div style={{ flex: 1 }} />
         <button onClick={onCancel} disabled={busy}
           style={{ padding: "10px 8px", border: "none", background: "transparent", color: "var(--ink-faint)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>

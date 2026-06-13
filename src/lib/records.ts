@@ -77,7 +77,7 @@ export type RecordInput = {
 
 export async function createRecord(
   input: RecordInput,
-  photo?: File | null
+  photos?: File[] | File | null
 ): Promise<void> {
   const { data: rec, error } = await supabase
     .from("records")
@@ -95,10 +95,12 @@ export async function createRecord(
     .select()
     .single();
   if (error) throw error;
-  if (photo) await addPhoto(rec.id, photo);
+  const list = Array.isArray(photos) ? photos : photos ? [photos] : [];
+  // 選んだ順を保つため sort を付けて順番にアップロード
+  for (let i = 0; i < list.length; i++) await addPhoto(rec.id, list[i], i);
 }
 
-export async function addPhoto(recordId: string, file: File): Promise<void> {
+export async function addPhoto(recordId: string, file: File, sort = 0): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("ログインしていません");
   const blob = await resizeImage(file);
@@ -109,7 +111,7 @@ export async function addPhoto(recordId: string, file: File): Promise<void> {
   if (upErr) throw upErr;
   const { error } = await supabase
     .from("record_photos")
-    .insert({ record_id: recordId, storage_path: path });
+    .insert({ record_id: recordId, storage_path: path, sort });
   if (error) throw error;
 }
 

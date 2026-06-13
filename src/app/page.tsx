@@ -115,16 +115,11 @@ export default function Home() {
     const f = e.target.files?.[0];
     if (!f) return;
     e.target.value = "";
-    const dataUrl = await new Promise<string>((res) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result as string);
-      r.readAsDataURL(f);
-    });
     let meta: Awaited<ReturnType<typeof readExif>> = {};
     try { meta = await readExif(f); } catch {}
     if (meta.lat && meta.lon) {
       const c = countryFromGPS(meta.lon, meta.lat);
-      const init = { taken_at: exifDateToISO(meta.date) ?? "", photo: f, photoPreview: dataUrl };
+      const init = { taken_at: exifDateToISO(meta.date) ?? "", photos: [f] };
       if (c?.code === JAPAN_CODE) {
         const p = prefFromGPS(meta.lon, meta.lat);
         if (p) {
@@ -172,7 +167,7 @@ export default function Home() {
           visibility: v.visibility,
           scout: Object.values(v.scout).some(Boolean) ? v.scout : null,
         },
-        v.photo
+        v.photos
       );
       await reload();
       setStamp({ pref: placeName, no: prevCount + 1, first: prevCount === 0 });
@@ -195,7 +190,9 @@ export default function Home() {
         visibility: v.visibility,
         scout: Object.values(v.scout).some(Boolean) ? v.scout : null,
       });
-      if (v.photo) await addPhoto(rec.id, v.photo);
+      // 既存写真の後ろに、選んだ順で追加
+      const base = rec.photos.length;
+      for (let i = 0; i < v.photos.length; i++) await addPhoto(rec.id, v.photos[i], base + i);
       const fresh = await fetchRecords();
       setRecords(fresh);
       setSpot(fresh.find((r) => r.id === rec.id) ?? null);
