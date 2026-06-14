@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { mainRingBboxOf, type Prefecture } from "@/lib/prefectures";
+import { projGeo } from "@/lib/geo";
 import type { Muni } from "@/lib/munis";
 
 type Props = {
   pref: Prefecture;
+  // 区に属さない地点(埋め立て島など)のフォールバック点グロー
+  orphanPoints?: { id: string; lng: number; lat: number }[];
   // 地図⇔写真の連動(市区町村)
   munis?: Muni[] | null;
   selectedMuni?: string | null; // タップで選択中のコード
@@ -18,7 +21,7 @@ type Props = {
 
 // 県の一枚絵: 古地図色のシルエットに、訪れた場所の地名が手書きで書き込まれていく
 // public/maps/{id}.png(AI生成の水彩アート地図)があれば、それを下敷きに使う
-export default function PrefArt({ pref, munis, selectedMuni, blinkMuni, visitedMunis, highlightMuni, muniCounts, onMuniTap }: Props) {
+export default function PrefArt({ pref, orphanPoints, munis, selectedMuni, blinkMuni, visitedMunis, highlightMuni, muniCounts, onMuniTap }: Props) {
   const [artUrl, setArtUrl] = useState<string | null>(null);
   const [hoverMuni, setHoverMuni] = useState<Muni | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
@@ -66,10 +69,14 @@ export default function PrefArt({ pref, munis, selectedMuni, blinkMuni, visitedM
         </filter>
         {/* 達成スポットの温かい光(中心が明るく外へ溶ける) */}
         <radialGradient id={`spotGlow-${pref.id}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#FFE7B0" stopOpacity="0.85" />
-          <stop offset="40%" stopColor="#F4C27A" stopOpacity="0.45" />
+          <stop offset="0%" stopColor="#FFE7B0" stopOpacity="0.95" />
+          <stop offset="45%" stopColor="#F4C27A" stopOpacity="0.6" />
           <stop offset="100%" stopColor="#F4C27A" stopOpacity="0" />
         </radialGradient>
+        {/* 光のにじみ(グロー) */}
+        <filter id={`bloom-${pref.id}`} x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation={k * 0.012} />
+        </filter>
       </defs>
 
       {/* 水彩アート地図(あれば最優先で下敷きに。比率は変えず無加工で表示) */}
@@ -118,10 +125,15 @@ export default function PrefArt({ pref, munis, selectedMuni, blinkMuni, visitedM
       {munis && visitedMunis && munis.filter((m) => visitedMunis.has(m.code)).map((m) => {
         const hot = m.code === highlightMuni;
         return (
-          <path key={"region" + m.code} d={m.path} className="atlas-visited" pointerEvents="none"
-            fill={`url(#spotGlow-${pref.id})`} fillOpacity={hot ? 0.55 : 0.34}
-            stroke="#FFE6AE" strokeWidth={k * (hot ? 0.006 : 0.0035)} strokeOpacity={hot ? 1 : 0.82}
-            strokeLinejoin="round" />
+          <g key={"region" + m.code} className="atlas-visited" pointerEvents="none">
+            {/* にじむ光(下地) */}
+            <path d={m.path} fill="#FFD98A" fillOpacity={hot ? 0.6 : 0.42}
+              filter={`url(#bloom-${pref.id})`} />
+            {/* 本体の温かい塗り＋明るい縁取り */}
+            <path d={m.path} fill={`url(#spotGlow-${pref.id})`} fillOpacity={hot ? 0.7 : 0.5}
+              stroke="#FFEFC2" strokeWidth={k * (hot ? 0.007 : 0.0045)} strokeOpacity={hot ? 1 : 0.9}
+              strokeLinejoin="round" />
+          </g>
         );
       })}
 
@@ -134,12 +146,28 @@ export default function PrefArt({ pref, munis, selectedMuni, blinkMuni, visitedM
         return (
           <g key={"badge" + m.code} style={{ cursor: "pointer" }}
             onPointerUp={() => onMuniTap?.(m)}>
+            {/* 光の輪 */}
+            <circle className="atlas-visited" cx={m.cx} cy={m.cy} r={r * 2.1}
+              fill="#FFD98A" opacity="0.5" filter={`url(#bloom-${pref.id})`} pointerEvents="none" />
             <circle cx={m.cx} cy={m.cy} r={r} fill="#9A5B3C"
-              stroke="#F7F2E7" strokeWidth={k * 0.0016} opacity="0.96" />
+              stroke="#FFEFC2" strokeWidth={k * 0.0018} opacity="0.98" />
             <text x={m.cx} y={m.cy + r * 0.36} textAnchor="middle"
               fontSize={r * 1.15} fontWeight="700" fill="#F7F2E7">
               {cnt}
             </text>
+          </g>
+        );
+      })}
+
+      {/* 区に属さない地点(埋め立て島など)のフォールバック: 点を温かく光らせる */}
+      {(orphanPoints ?? []).map((p) => {
+        const [x, y] = projGeo(p.lng, p.lat);
+        if (x < vx || x > vx + vw || y < vy || y > vy + vh) return null;
+        return (
+          <g key={"orphan" + p.id} className="atlas-visited" pointerEvents="none">
+            <circle cx={x} cy={y} r={k * 0.05} fill="#FFD98A" opacity="0.55" filter={`url(#bloom-${pref.id})`} />
+            <circle cx={x} cy={y} r={k * 0.012} fill={`url(#spotGlow-${pref.id})`} />
+            <circle cx={x} cy={y} r={k * 0.006} fill="#FFEFC2" />
           </g>
         );
       })}

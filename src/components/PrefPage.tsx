@@ -62,6 +62,15 @@ export default function PrefPage({
     return c;
   }, [recMuni]);
 
+  // 区に属さない地点(埋め立て島など)。点グローで光らせる
+  const orphanPoints = useMemo(
+    () =>
+      records
+        .filter((r) => r.lat != null && r.lng != null && !recMuni.has(r.id))
+        .map((r) => ({ id: r.id, lng: r.lng!, lat: r.lat! })),
+    [records, recMuni]
+  );
+
   const shownRecords = muniSel ? records.filter((r) => recMuni.get(r.id) === muniSel.code) : records;
 
   // 統計: 訪れた場所 / 踏破率(グリッド) / 写真枚数
@@ -128,10 +137,14 @@ export default function PrefPage({
 
         {/* 県の一枚絵 */}
         <div style={{ margin: "14px auto 0" }}>
-          <PrefArt pref={pref}
+          <PrefArt pref={pref} orphanPoints={orphanPoints}
             munis={munis} selectedMuni={muniSel?.code ?? null} blinkMuni={blinkMuni}
             visitedMunis={new Set(recMuni.values())} highlightMuni={highlightMuni} muniCounts={muniCounts}
-            onMuniTap={(m) => setMuniSel((cur) => (cur?.code === m.code ? null : m))} />
+            onMuniTap={(m) => {
+              // 記録のない区をタップしたら絞り込みは解除(カードが消えたように見えるのを防ぐ)
+              const hasRecords = (muniCounts[m.code] ?? 0) > 0;
+              setMuniSel((cur) => (cur?.code === m.code || !hasRecords ? null : m));
+            }} />
         </div>
 
         {/* 統計 */}
