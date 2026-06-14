@@ -41,6 +41,10 @@ body {
   font-family: "Zen Kaku Gothic New", sans-serif;
   padding-bottom: env(safe-area-inset-bottom);
   -webkit-tap-highlight-color: transparent;
+  /* PWA(ホーム画面起動)向け: 文字の自動拡大やバウンスを抑える */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior-y: none;
 }
 
 /* スマホ: ボタンを押しやすく */
