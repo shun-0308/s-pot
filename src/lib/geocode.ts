@@ -5,11 +5,10 @@
 
 export type GeoPoint = { lat: number; lon: number; display?: string };
 
-const ENDPOINT = "https://nominatim.openstreetmap.org/search";
-
 // ごく軽いメモ化(同じ場所名を何度も叩かない)
 const cache = new Map<string, GeoPoint | null>();
 
+// 自前のAPIルート(サーバー)経由で問い合わせる。ブラウザ直叩きのUA制約/CORSを回避。
 export async function geocodePlace(
   query: string,
   opts: { jpOnly?: boolean } = {}
@@ -19,26 +18,15 @@ export async function geocodePlace(
   const key = `${opts.jpOnly ? "jp:" : ""}${q}`;
   if (cache.has(key)) return cache.get(key)!;
 
-  const params = new URLSearchParams({
-    format: "jsonv2",
-    q,
-    limit: "1",
-    "accept-language": "ja",
-  });
-  if (opts.jpOnly) params.set("countrycodes", "jp");
+  const params = new URLSearchParams({ q });
+  if (opts.jpOnly) params.set("jp", "1");
 
   try {
-    const res = await fetch(`${ENDPOINT}?${params.toString()}`, {
-      headers: { Accept: "application/json" },
-    });
+    const res = await fetch(`/api/geocode?${params.toString()}`);
     if (!res.ok) throw new Error(String(res.status));
-    const data = (await res.json()) as Array<{ lat: string; lon: string; display_name?: string }>;
-    const hit = data[0];
-    const point: GeoPoint | null = hit
-      ? { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon), display: hit.display_name }
-      : null;
-    cache.set(key, point);
-    return point;
+    const data = (await res.json()) as { point: GeoPoint | null };
+    cache.set(key, data.point ?? null);
+    return data.point ?? null;
   } catch {
     return null;
   }

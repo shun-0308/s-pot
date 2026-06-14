@@ -34,8 +34,9 @@ export default function PrefPage({
   const [munis, setMunis] = useState<Muni[] | null>(null);
   const [muniSel, setMuniSel] = useState<Muni | null>(null);
   const [blinkMuni, setBlinkMuni] = useState<string | null>(null);
+  const [highlightMuni, setHighlightMuni] = useState<string | null>(null); // カードのクリックで光らせる
   useEffect(() => {
-    setMunis(null); setMuniSel(null); setBlinkMuni(null);
+    setMunis(null); setMuniSel(null); setBlinkMuni(null); setHighlightMuni(null);
     if (pref.id === 47) return;
     let alive = true;
     loadMunis(pref.id).then((m) => alive && setMunis(m)).catch(() => {});
@@ -53,6 +54,13 @@ export default function PrefPage({
     }
     return map;
   }, [munis, records]);
+
+  // 市区町村ごとの件数(地図のバッジ用)
+  const muniCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const code of recMuni.values()) c[code] = (c[code] ?? 0) + 1;
+    return c;
+  }, [recMuni]);
 
   const shownRecords = muniSel ? records.filter((r) => recMuni.get(r.id) === muniSel.code) : records;
 
@@ -120,8 +128,9 @@ export default function PrefPage({
 
         {/* 県の一枚絵 */}
         <div style={{ margin: "14px auto 0" }}>
-          <PrefArt pref={pref} records={records} onSelect={onSelectSpot}
+          <PrefArt pref={pref}
             munis={munis} selectedMuni={muniSel?.code ?? null} blinkMuni={blinkMuni}
+            visitedMunis={new Set(recMuni.values())} highlightMuni={highlightMuni} muniCounts={muniCounts}
             onMuniTap={(m) => setMuniSel((cur) => (cur?.code === m.code ? null : m))} />
         </div>
 
@@ -221,7 +230,9 @@ export default function PrefPage({
             ) : (
               <div className="pol-row">
                 {shownRecords.map((r) => (
-                  <PolaroidCard key={r.id} rec={r} onClick={() => onSelectSpot(r)}
+                  <PolaroidCard key={r.id} rec={r}
+                    onClick={() => setHighlightMuni(recMuni.get(r.id) ?? null)}
+                    onOpen={() => onSelectSpot(r)}
                     onHover={(h) => setBlinkMuni(h ? recMuni.get(r.id) ?? null : null)} />
                 ))}
               </div>

@@ -12,16 +12,18 @@ const tiltOf = (id: string): number => {
 
 type Props = {
   rec: RecordWithPhotos;
-  onClick: () => void;
+  onClick: () => void; // シングルクリック: 地図の該当地域を光らせる
+  onOpen?: () => void; // ダブルクリック: 記録の中身を開く
   onHover?: (hovering: boolean) => void; // 地図の該当地域を点滅させる
 };
 
 // ポラロイド風カード: 写真・場所名・日付・ひとこと。上にマスキングテープ
-export default function PolaroidCard({ rec, onClick, onHover }: Props) {
+export default function PolaroidCard({ rec, onClick, onOpen, onHover }: Props) {
   const tilt = tiltOf(rec.id);
   return (
-    <div onClick={onClick} className="entry" role="button" tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && onClick()}
+    <div onClick={onClick} onDoubleClick={onOpen} className="entry" role="button" tabIndex={0}
+      title="クリックで地図を光らせる / ダブルクリックで開く"
+      onKeyDown={(e) => e.key === "Enter" && (onOpen ?? onClick)()}
       onPointerEnter={() => onHover?.(true)}
       onPointerLeave={() => onHover?.(false)}
       style={{

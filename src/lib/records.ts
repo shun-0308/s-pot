@@ -67,6 +67,7 @@ export type RecordInput = {
   pref_code: number | null; // 日本の記録のみ
   country_code: string; // 日本 = "392"
   name: string;
+  address?: string | null; // 位置判定に使う住所/場所名
   taken_at: string | null; // "YYYY-MM-DD"
   body: string;
   lat?: number | null;
@@ -85,6 +86,7 @@ export async function createRecord(
       pref_code: input.pref_code,
       country_code: input.country_code,
       name: input.name,
+      address: input.address ?? null,
       taken_at: input.taken_at,
       body: input.body,
       lat: input.lat ?? null,

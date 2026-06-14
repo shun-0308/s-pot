@@ -3,14 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RecordWithPhotos } from "@/lib/records";
 import type { Visibility, ScoutInfo } from "@/lib/supabase";
+import { PREFECTURES } from "@/lib/prefectures";
 
 export type FormValues = {
   name: string;
+  address: string; // 位置判定に使う住所/場所名(任意)
   taken_at: string; // "YYYY-MM-DD" or ""
   body: string;
   photos: File[]; // 複数枚まとめてアップロードできる
   visibility: Visibility;
   scout: ScoutInfo;
+  pref_code?: number | null; // 編集時に都道府県を選び直せる(日本の記録)
 };
 
 const SCOUT_TIMES = ["朝焼け", "午前", "午後", "夕暮れ", "夜景"];
@@ -33,6 +36,7 @@ type Props = {
   title: string;
   initial?: Partial<FormValues>;
   existing?: RecordWithPhotos | null; // 編集時(既存写真の表示用)
+  prefSelectable?: boolean; // 都道府県を選び直せるようにする(日本の記録の編集)
   busy: boolean;
   onSubmit: (v: FormValues) => void;
   onCancel: () => void;
@@ -51,14 +55,16 @@ const inputStyle = {
   color: "var(--ink)",
 };
 
-export default function RecordForm({ title, initial, existing, busy, onSubmit, onCancel }: Props) {
+export default function RecordForm({ title, initial, existing, prefSelectable, busy, onSubmit, onCancel }: Props) {
   const [v, setV] = useState<FormValues>({
     name: initial?.name ?? "",
+    address: initial?.address ?? "",
     taken_at: initial?.taken_at ?? "",
     body: initial?.body ?? "",
     photos: initial?.photos ?? [],
     visibility: initial?.visibility ?? "private",
     scout: initial?.scout ?? {},
+    pref_code: initial?.pref_code ?? null,
   });
   const [scoutOpen, setScoutOpen] = useState(
     !!initial?.scout && Object.values(initial.scout).some(Boolean)
@@ -136,6 +142,16 @@ export default function RecordForm({ title, initial, existing, busy, onSubmit, o
 
       <input style={inputStyle} placeholder="場所の名前(例: 尾道・千光寺)" value={v.name}
         onChange={(e) => setV((p) => ({ ...p, name: e.target.value }))} />
+      {prefSelectable && (
+        <select style={{ ...inputStyle, appearance: "auto" }} value={v.pref_code ?? ""}
+          onChange={(e) => setV((p) => ({ ...p, pref_code: e.target.value ? Number(e.target.value) : null }))}>
+          {PREFECTURES.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      )}
+      <input style={inputStyle} placeholder="住所・場所名(例: 東京駅 / 横浜市金沢区 八景島) — 地図の位置判定に使います" value={v.address}
+        onChange={(e) => setV((p) => ({ ...p, address: e.target.value }))} />
       <input style={inputStyle} type="date" value={v.taken_at}
         onChange={(e) => setV((p) => ({ ...p, taken_at: e.target.value }))} />
       <textarea style={{ ...inputStyle, resize: "vertical", lineHeight: 1.9 }} rows={5}

@@ -32,6 +32,7 @@ export type RecordRow = {
   pref_code: number | null; // 日本の記録のみ(JIS都道府県コード)
   country_code: string; // ISO 3166-1 numeric。日本 = "392"
   name: string;
+  address: string | null; // 位置判定に使う住所/場所名(任意)
   taken_at: string | null;
   body: string | null;
   lat: number | null;

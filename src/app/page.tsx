@@ -164,10 +164,11 @@ export default function Home() {
       const prevCount = records.filter((r) =>
         isJP ? r.pref_code === pref!.id && r.country_code === JAPAN_CODE : r.country_code === code
       ).length;
-      // 写真にGPSが無ければ、場所名から座標を補完(踏破率・市区町村判定のため)
+      // 写真にGPSが無ければ、住所(なければ場所名)から座標を補完
       let coords: { lat: number; lng: number } | null = gps;
-      if (!coords && v.name.trim()) {
-        const q = isJP ? `${v.name} ${pref!.name}` : `${v.name} ${country!.name}`;
+      const geoQuery = (v.address.trim() || v.name).trim();
+      if (!coords && geoQuery) {
+        const q = isJP ? `${geoQuery} ${pref!.name}` : `${geoQuery} ${country!.name}`;
         const g = await geocodePlace(q, { jpOnly: isJP });
         if (g) coords = { lat: g.lat, lng: g.lon };
       }
@@ -176,6 +177,7 @@ export default function Home() {
           pref_code: isJP ? pref!.id : null,
           country_code: code,
           name: v.name,
+          address: v.address.trim() || null,
           taken_at: v.taken_at || null,
           body: v.body,
           lat: coords?.lat ?? null,
@@ -186,6 +188,8 @@ export default function Home() {
         v.photos
       );
       await reload();
+      if (!coords && geoQuery)
+        setError(`記録は保存しましたが、「${geoQuery}」から地図上の位置を特定できませんでした。あとで編集の住所欄を具体的にすると地図に表示されます。`);
       setStamp({ pref: placeName, no: prevCount + 1, first: prevCount === 0 });
       resetEntryState();
     } catch (e) {
@@ -199,12 +203,34 @@ export default function Home() {
     setBusy(true);
     setError(null);
     try {
+      const isJP = rec.country_code === JAPAN_CODE;
+      // 都道府県を選び直した場合は付け替え、座標も取り直す
+      const newPref = isJP && v.pref_code !== undefined ? v.pref_code : rec.pref_code;
+      const prefChanged = newPref !== rec.pref_code;
+      const addr = v.address.trim();
+      const addrChanged = addr !== (rec.address ?? "").trim();
+      // 県も住所も変えていなくて座標が既にあればそのまま。なければ住所(or名前)から補完。
+      let coords: { lat: number; lng: number } | null =
+        !prefChanged && !addrChanged && rec.lat != null && rec.lng != null
+          ? { lat: rec.lat, lng: rec.lng } : null;
+      const geoQuery = (addr || v.name).trim();
+      const needGeo = !coords && !!geoQuery;
+      if (needGeo) {
+        const prefName = isJP ? prefByCode(newPref ?? 0)?.name ?? "" : "";
+        const country = !isJP ? countryByCode(rec.country_code)?.name ?? "" : "";
+        const g = await geocodePlace(`${geoQuery} ${isJP ? prefName : country}`, { jpOnly: isJP });
+        if (g) coords = { lat: g.lat, lng: g.lon };
+      }
       await updateRecord(rec.id, {
         name: v.name,
+        address: addr || null,
         taken_at: v.taken_at || null,
         body: v.body,
         visibility: v.visibility,
         scout: Object.values(v.scout).some(Boolean) ? v.scout : null,
+        pref_code: newPref,
+        // 座標が取れたら更新。県/住所を変えたのに取れなければ、古い座標は消す。
+        ...(coords ? { lat: coords.lat, lng: coords.lng } : prefChanged || addrChanged ? { lat: null, lng: null } : {}),
       });
       // 既存写真の後ろに、選んだ順で追加
       const base = rec.photos.length;
@@ -212,6 +238,10 @@ export default function Home() {
       const fresh = await fetchRecords();
       setRecords(fresh);
       setSpot(fresh.find((r) => r.id === rec.id) ?? null);
+      // 住所/場所名から位置を特定できなかったときは、無言にせず知らせる
+      if (needGeo && !coords)
+        setError(`「${geoQuery}」から地図上の位置を特定できませんでした。住所欄をより具体的に(例: 市区町村+施設名)すると地図に表示されます。`);
+      else setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "更新に失敗しました");
     } finally {

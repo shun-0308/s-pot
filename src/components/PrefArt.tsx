@@ -1,25 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RecordWithPhotos } from "@/lib/records";
 import { mainRingBboxOf, type Prefecture } from "@/lib/prefectures";
-import { projGeo } from "@/lib/geo";
 import type { Muni } from "@/lib/munis";
 
 type Props = {
   pref: Prefecture;
-  records: RecordWithPhotos[];
-  onSelect: (rec: RecordWithPhotos) => void;
   // 地図⇔写真の連動(市区町村)
   munis?: Muni[] | null;
   selectedMuni?: string | null; // タップで選択中のコード
   blinkMuni?: string | null;    // 写真ホバーで点滅させるコード
+  visitedMunis?: Set<string>;   // 記録のある市区町村(境界に沿って光らせる)
+  highlightMuni?: string | null; // カードのクリックで強調する市区町村
+  muniCounts?: Record<string, number>; // 市区町村ごとの記録件数(バッジ表示)
   onMuniTap?: (m: Muni) => void;
 };
 
 // 県の一枚絵: 古地図色のシルエットに、訪れた場所の地名が手書きで書き込まれていく
 // public/maps/{id}.png(AI生成の水彩アート地図)があれば、それを下敷きに使う
-export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, blinkMuni, onMuniTap }: Props) {
+export default function PrefArt({ pref, munis, selectedMuni, blinkMuni, visitedMunis, highlightMuni, muniCounts, onMuniTap }: Props) {
   const [artUrl, setArtUrl] = useState<string | null>(null);
   const [hoverMuni, setHoverMuni] = useState<Muni | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
@@ -41,19 +40,6 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
   const vw = bb.w + pad * 2;
   const vh = bb.h + pad * 2;
   const k = Math.max(vw, vh); // 県の大きさに対する相対単位
-
-  // GPS付き記録(新しい順、ラベルは最大9件まで)。沖縄はインセット投影のため非対応
-  const pins =
-    pref.id === 47
-      ? []
-      : records
-          .filter((r) => r.lat != null && r.lng != null)
-          .map((r) => {
-            const [x, y] = projGeo(r.lng!, r.lat!);
-            return { r, x, y };
-          })
-          .filter((p) => p.x > vx && p.x < vx + vw && p.y > vy && p.y < vy + vh)
-          .slice(0, 9);
 
   // 画面座標 → viewBox座標(照準線カーソル用)。沖縄はインセットのため照準なし
   const interactive = munis != null && pref.id !== 47;
@@ -126,13 +112,37 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
       </g>
       </>)}
 
-      {/* 達成/未達成の演出: アートはAI生成で数pxズレるため、ポリゴン塗りは使わない。
-          未達成(=記録なし)は常に少し暗く、達成(GPSのある記録)地点だけ温かく光らせて点滅させる。 */}
+      {/* 達成/未達成の演出: 未達成(=記録なし)は常に少し暗く。
+          達成した市区町村は、その境界に沿って温かく光らせて点滅させる。 */}
       <rect x={vx} y={vy} width={vw} height={vh} fill="#241c14" opacity="0.28" pointerEvents="none" />
-      {pins.map(({ r, x, y }) => (
-        <circle key={"glow" + r.id} className="atlas-visited" pointerEvents="none"
-          cx={x} cy={y} r={k * 0.05} fill={`url(#spotGlow-${pref.id})`} />
-      ))}
+      {munis && visitedMunis && munis.filter((m) => visitedMunis.has(m.code)).map((m) => {
+        const hot = m.code === highlightMuni;
+        return (
+          <path key={"region" + m.code} d={m.path} className="atlas-visited" pointerEvents="none"
+            fill={`url(#spotGlow-${pref.id})`} fillOpacity={hot ? 0.55 : 0.34}
+            stroke="#FFE6AE" strokeWidth={k * (hot ? 0.006 : 0.0035)} strokeOpacity={hot ? 1 : 0.82}
+            strokeLinejoin="round" />
+        );
+      })}
+
+      {/* 件数バッジ: 同じ市区町村に何件あっても1つにまとめて中心に表示 */}
+      {munis && visitedMunis && muniCounts && munis.filter((m) => visitedMunis.has(m.code)).map((m) => {
+        const cnt = muniCounts[m.code] ?? 0;
+        if (!cnt) return null;
+        const hot = m.code === highlightMuni;
+        const r = k * (hot ? 0.016 : 0.013);
+        return (
+          <g key={"badge" + m.code} style={{ cursor: "pointer" }}
+            onPointerUp={() => onMuniTap?.(m)}>
+            <circle cx={m.cx} cy={m.cy} r={r} fill="#9A5B3C"
+              stroke="#F7F2E7" strokeWidth={k * 0.0016} opacity="0.96" />
+            <text x={m.cx} y={m.cy + r * 0.36} textAnchor="middle"
+              fontSize={r * 1.15} fontWeight="700" fill="#F7F2E7">
+              {cnt}
+            </text>
+          </g>
+        );
+      })}
 
       {/* 市区町村レイヤー(ヒット判定のみ・不可視)。アートはAI生成で数pxズレるため、
           表示は塗りでなく照準+地域名(座標ベース)で行う */}
@@ -209,34 +219,6 @@ export default function PrefArt({ pref, records, onSelect, munis, selectedMuni, 
         </g>
       )}
 
-      {/* 訪れた場所(点+手書き地名)。最新の1件は土色で強調 */}
-      {pins.map(({ r, x, y }, i) => {
-        const latest = i === 0;
-        const right = x < vx + vw * 0.68;
-        return (
-          <g key={r.id} style={{ cursor: "pointer" }}
-            onPointerUp={() => onSelect(r)}>
-            <circle cx={x} cy={y} r={k * 0.035} fill="transparent" />
-            {latest && (
-              <g stroke="#B0714F" strokeWidth={k * 0.002} opacity="0.9">
-                <line x1={x - k * 0.022} y1={y - k * 0.018} x2={x - k * 0.013} y2={y - k * 0.011} />
-                <line x1={x - k * 0.003} y1={y - k * 0.028} x2={x - k * 0.003} y2={y - k * 0.017} />
-                <line x1={x + k * 0.016} y1={y - k * 0.019} x2={x + k * 0.009} y2={y - k * 0.011} />
-              </g>
-            )}
-            <circle cx={x} cy={y} r={latest ? k * 0.011 : k * 0.0075}
-              fill={latest ? "#B0714F" : "var(--ink)"} opacity={latest ? 1 : 0.85} />
-            <text x={x + (right ? k * 0.018 : -k * 0.018)} y={y + k * 0.009}
-              textAnchor={right ? "start" : "end"}
-              className="hand-jp"
-              fontSize={k * 0.034}
-              fill="var(--ink)"
-              style={{ fontFamily: "'Klee One', cursive" }}>
-              {r.name.length > 8 ? r.name.slice(0, 8) + "…" : r.name}
-            </text>
-          </g>
-        );
-      })}
     </svg>
   );
 }
