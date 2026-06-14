@@ -3,19 +3,21 @@
 import { useState } from "react";
 import RecordForm, { VISIBILITY_LABEL, type FormValues } from "./RecordForm";
 import { type RecordWithPhotos } from "@/lib/records";
+import { youtubeEmbed } from "@/lib/youtube";
 
 type Props = {
   backLabel: string; // 戻りリンクの表記(例: 愛媛県の記録)
   captionText: string; // 英字キャプション(例: EHIME — 2026.06.16)
   rec: RecordWithPhotos;
   busy: boolean;
+  isOwner?: boolean; // falseなら編集・削除ボタンを非表示
   onBack: () => void;
   onUpdate: (rec: RecordWithPhotos, v: FormValues) => void;
   onDelete: (rec: RecordWithPhotos) => void;
 };
 
 // 記録詳細 — 暗幕(ダーク)ビュー。写真と記録文だけが浮かぶ
-export default function SpotDetail({ backLabel, captionText, rec, busy, onBack, onUpdate, onDelete }: Props) {
+export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner = true, onBack, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [viewer, setViewer] = useState<number | null>(null); // 拡大表示中の写真index
@@ -80,7 +82,7 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, onBack, 
           <div style={{ background: "var(--paper)", padding: "20px 18px" }}>
             <RecordForm
               title="記録を編集"
-              initial={{ name: rec.name, address: rec.address ?? "", taken_at: rec.taken_at ?? "", body: rec.body ?? "", visibility: rec.visibility, scout: rec.scout ?? {}, pref_code: rec.pref_code }}
+              initial={{ name: rec.name, address: rec.address ?? "", taken_at: rec.taken_at ?? "", body: rec.body ?? "", youtube_url: rec.youtube_url ?? "", visibility: rec.visibility, scout: rec.scout ?? {}, pref_code: rec.pref_code }}
               existing={rec}
               prefSelectable={rec.country_code === "392"}
               busy={busy}
@@ -123,6 +125,29 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, onBack, 
               {rec.body || "記録文はまだありません。"}
             </p>
 
+            {/* 動画/リンク: YouTubeは埋め込み、それ以外(Instagram等)はリンクで開く */}
+            {rec.youtube_url && (
+              <div style={{ marginTop: 22 }}>
+                <div className="caption" style={{ color: "var(--dark-faint)", marginBottom: 8 }}>VIDEO</div>
+                {youtubeEmbed(rec.youtube_url) ? (
+                  <div style={{ position: "relative", width: "100%", paddingTop: "56.25%", borderRadius: 4, overflow: "hidden", background: "#000" }}>
+                    <iframe
+                      src={youtubeEmbed(rec.youtube_url)!}
+                      title={rec.name}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <a href={rec.youtube_url} target="_blank" rel="noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", border: "1px solid var(--hairline-dark)", color: "var(--dark-body)", fontSize: 13, textDecoration: "none", letterSpacing: "0.06em" }}>
+                    ▶ 動画・リンクを開く ↗
+                  </a>
+                )}
+              </div>
+            )}
+
             {/* ロケハン情報 */}
             {rec.scout && Object.values(rec.scout).some(Boolean) && (
               <div style={{ marginTop: 26, border: "1px solid var(--hairline-dark)", padding: "14px 16px 6px" }}>
@@ -163,26 +188,30 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, onBack, 
                 </a>
               )}
               <div style={{ flex: 1 }} />
-              <button onClick={() => setEditing(true)}
-                style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textDecoration: "underline", textUnderlineOffset: 4 }}>
-                編集
-              </button>
-              {confirming ? (
-                <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <button onClick={() => onDelete(rec)} disabled={busy}
-                    style={{ background: "var(--shu)", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "7px 14px", letterSpacing: "0.1em" }}>
-                    {busy ? "削除中…" : "削除する"}
+              {isOwner && (
+                <>
+                  <button onClick={() => setEditing(true)}
+                    style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                    編集
                   </button>
-                  <button onClick={() => setConfirming(false)}
-                    style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                    やめる
-                  </button>
-                </span>
-              ) : (
-                <button onClick={() => setConfirming(true)}
-                  style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textDecoration: "underline", textUnderlineOffset: 4 }}>
-                  削除
-                </button>
+                  {confirming ? (
+                    <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <button onClick={() => onDelete(rec)} disabled={busy}
+                        style={{ background: "var(--shu)", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "7px 14px", letterSpacing: "0.1em" }}>
+                        {busy ? "削除中…" : "削除する"}
+                      </button>
+                      <button onClick={() => setConfirming(false)}
+                        style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                        やめる
+                      </button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setConfirming(true)}
+                      style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                      削除
+                    </button>
+                  )}
+                </>
               )}
             </div>
             </div>

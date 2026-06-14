@@ -9,6 +9,8 @@ import CountryPage from "@/components/CountryPage";
 import SpotDetail from "@/components/SpotDetail";
 import SharedFeed from "@/components/SharedFeed";
 import SearchPage from "@/components/SearchPage";
+import { useAccess, Splash, InviteScreen, MembersOnlyScreen } from "@/components/AccessGate";
+import PlaceSearch from "@/components/PlaceSearch";
 import GlobeView from "@/components/GlobeView";
 import SideMenu from "@/components/SideMenu";
 import StampCelebration from "@/components/StampCelebration";
@@ -44,7 +46,6 @@ export default function Home() {
   const [stamp, setStamp] = useState<{ pref: string; no: number; first: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showAuth, setShowAuth] = useState(false);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
   const [pendingPref, setPendingPref] = useState<number | null>(null);
   const autoRef = useRef<HTMLInputElement>(null);
@@ -71,6 +72,9 @@ export default function Home() {
     if (session) reload();
     else setRecords([]);
   }, [session, reload]);
+
+  // アクセス制御(公開モード+S-Lab会員判定)
+  const access = useAccess(session, authReady);
 
   // 集計: 国別(地球用)と県別(日本地図用)
   const countryCounts = useMemo(() => {
@@ -178,6 +182,7 @@ export default function Home() {
           country_code: code,
           name: v.name,
           address: v.address.trim() || null,
+          youtube_url: v.youtube_url.trim() || null,
           taken_at: v.taken_at || null,
           body: v.body,
           lat: coords?.lat ?? null,
@@ -224,6 +229,7 @@ export default function Home() {
       await updateRecord(rec.id, {
         name: v.name,
         address: addr || null,
+        youtube_url: v.youtube_url.trim() || null,
         taken_at: v.taken_at || null,
         body: v.body,
         visibility: v.visibility,
@@ -263,8 +269,16 @@ export default function Home() {
     }
   };
 
-  // ── 画面分岐 ──
+  // ── アクセス制御(ログイン / 招待コード / メンバー限定) ──
   if (!authReady) return null;
+  if (access.status === "login") return <AuthForm />;
+  if (access.status === "loading") return <Splash />;
+  if (access.status === "invite")
+    return <InviteScreen onUnlocked={access.recheck} onLogout={() => supabase.auth.signOut()} />;
+  if (access.status === "blocked")
+    return <MembersOnlyScreen onLogout={() => supabase.auth.signOut()} />;
+
+  // ── 画面分岐 ──
 
   const MenuBtn = ({ dark = false }: { dark?: boolean }) => (
     <button aria-label="メニュー" onClick={() => setMenuOpen(true)}
@@ -277,29 +291,6 @@ export default function Home() {
 
   const overlays = (
     <>
-      {/* セッション切れ対策: 未ログインだと記録が取得できず「消えた」ように見えるため、
-          ログインへの導線を常に出す。ログインし直すと記録が復活する。 */}
-      {authReady && !session && (
-        showAuth ? (
-          <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(7,8,12,0.6)", overflowY: "auto" }}>
-            <div style={{ position: "relative" }}>
-              <button onClick={() => setShowAuth(false)} aria-label="閉じる"
-                style={{ position: "fixed", top: 16, right: 18, zIndex: 91, background: "none", border: "none", color: "#EDE8DC", fontSize: 22, cursor: "pointer", fontFamily: "inherit", padding: 6 }}>
-                ×
-              </button>
-              <AuthForm />
-            </div>
-          </div>
-        ) : (
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 70, background: "var(--ink)", color: "var(--paper)", fontSize: 12.5, padding: "9px 16px", display: "flex", alignItems: "center", gap: 12, justifyContent: "center", letterSpacing: "0.04em" }}>
-            <span>ログインしていないため、記録が表示されません。</span>
-            <button onClick={() => setShowAuth(true)}
-              style={{ border: "1px solid var(--paper)", background: "transparent", color: "var(--paper)", fontSize: 12, padding: "3px 14px", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em" }}>
-              ログイン
-            </button>
-          </div>
-        )
-      )}
       {stamp && (
         <StampCelebration prefName={stamp.pref} no={stamp.no} first={stamp.first}
           onDone={() => setStamp(null)} />
@@ -350,6 +341,10 @@ export default function Home() {
         <div style={{ position: "fixed", top: 14, left: 14, zIndex: 10 }}>
           <MenuBtn dark />
         </div>
+        {/* 場所で飛ぶ検索(地球を回さずに国・都道府県へ) */}
+        <div style={{ position: "fixed", top: 14, right: 14, zIndex: 11, display: "flex", justifyContent: "flex-end" }}>
+          <PlaceSearch onPickCountry={navToCountry} onPickPref={navToPref} />
+        </div>
         <div style={{ position: "fixed", bottom: 56, left: 0, right: 0, textAlign: "center", zIndex: 10 }}>
           <button onClick={() => autoRef.current?.click()}
             style={{ padding: "12px 26px", border: "1px solid rgba(237,232,220,0.4)", background: "rgba(11,14,20,0.55)", color: "#EDE8DC", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.18em" }}>
@@ -363,8 +358,8 @@ export default function Home() {
       </>
     );
 
-  if (view === "shared")
-    return <>{overlays}<SharedFeed onBack={() => setView("globe")} /></>;
+  if (view === "shared" && !spot)
+    return <>{overlays}<SharedFeed onBack={() => setView("globe")} onSelectSpot={setSpot} /></>;
 
   if (view === "search")
     return (
@@ -390,6 +385,7 @@ export default function Home() {
         {overlays}
         {errorBar}
         <SpotDetail backLabel={backLabel} captionText={captionText} rec={spot} busy={busy}
+          isOwner={spot.user_id === session?.user.id}
           onBack={() => setSpot(null)} onUpdate={handleUpdate} onDelete={handleDelete} />
       </>
     );

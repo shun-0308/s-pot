@@ -6,7 +6,7 @@ import { fetchSharedRecords, type RecordWithPhotos } from "@/lib/records";
 import { captionOf } from "@/lib/prefectures";
 
 // みんなの図鑑: 会員公開された記録のフィード
-export default function SharedFeed({ onBack }: { onBack: () => void }) {
+export default function SharedFeed({ onBack, onSelectSpot }: { onBack: () => void; onSelectSpot?: (rec: RecordWithPhotos) => void }) {
   const [records, setRecords] = useState<RecordWithPhotos[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +51,10 @@ export default function SharedFeed({ onBack }: { onBack: () => void }) {
 
         <div style={{ borderTop: records?.length ? "1px solid var(--hairline)" : "none" }}>
           {records?.map((r) => (
-            <div key={r.id} style={{ padding: "22px 0", borderBottom: "1px solid var(--hairline)" }}>
+            <div key={r.id}
+              onClick={() => onSelectSpot?.(r)}
+              role={onSelectSpot ? "button" : undefined}
+              style={{ padding: "22px 0", borderBottom: "1px solid var(--hairline)", cursor: onSelectSpot ? "pointer" : "default" }}>
               <Photo rec={r} h={210} />
               <div className="caption" style={{ marginTop: 12 }}>{captionOf(r.pref_code, r.taken_at)}</div>
               <div className="tz-serif" style={{ fontSize: 17.5, fontWeight: 700, lineHeight: 1.5, marginTop: 3 }}>
