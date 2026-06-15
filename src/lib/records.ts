@@ -1,7 +1,7 @@
 import { supabase, type RecordRow, type RecordPhotoRow, type Visibility, type ScoutInfo } from "./supabase";
 
 export type PhotoWithUrl = RecordPhotoRow & { url: string | null };
-export type RecordWithPhotos = RecordRow & { photos: PhotoWithUrl[] };
+export type RecordWithPhotos = RecordRow & { photos: PhotoWithUrl[]; display_name?: string | null };
 
 // 署名付きURLを一括発行(バケットは非公開)
 async function attachUrls(records: RecordWithPhotos[]): Promise<RecordWithPhotos[]> {
@@ -32,7 +32,7 @@ export async function fetchRecords(): Promise<RecordWithPhotos[]> {
   return attachUrls((data ?? []) as unknown as RecordWithPhotos[]);
 }
 
-// みんなの図鑑: 会員公開された記録(自分の分も含む)
+// みんなの図鑑: 会員公開された記録(自分の分も含む) + 投稿者の表示名
 export async function fetchSharedRecords(): Promise<RecordWithPhotos[]> {
   const { data, error } = await supabase
     .from("records")
@@ -41,7 +41,20 @@ export async function fetchSharedRecords(): Promise<RecordWithPhotos[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return attachUrls((data ?? []) as unknown as RecordWithPhotos[]);
+  const records = (data ?? []) as unknown as RecordWithPhotos[];
+
+  // 投稿者の表示名を一括取得
+  const userIds = [...new Set(records.map((r) => r.user_id))];
+  if (userIds.length) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", userIds);
+    const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.display_name as string | null]));
+    for (const r of records) r.display_name = nameMap.get(r.user_id) ?? null;
+  }
+
+  return attachUrls(records);
 }
 
 // クライアント側リサイズ(長辺2000px・JPEG)
@@ -68,6 +81,7 @@ export type RecordInput = {
   country_code: string; // 日本 = "392"
   name: string;
   address?: string | null; // 位置判定に使う住所/場所名
+  youtube_url?: string | null; // 関連YouTube動画
   taken_at: string | null; // "YYYY-MM-DD"
   body: string;
   lat?: number | null;
@@ -87,6 +101,7 @@ export async function createRecord(
       country_code: input.country_code,
       name: input.name,
       address: input.address ?? null,
+      youtube_url: input.youtube_url ?? null,
       taken_at: input.taken_at,
       body: input.body,
       lat: input.lat ?? null,

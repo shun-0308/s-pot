@@ -8,6 +8,7 @@ import PrefPage from "@/components/PrefPage";
 import CountryPage from "@/components/CountryPage";
 import SpotDetail from "@/components/SpotDetail";
 import SharedFeed from "@/components/SharedFeed";
+import ProfileSettings from "@/components/ProfileSettings";
 import SearchPage from "@/components/SearchPage";
 import { useAccess, Splash, InviteScreen, MembersOnlyScreen } from "@/components/AccessGate";
 import PlaceSearch from "@/components/PlaceSearch";
@@ -46,6 +47,7 @@ export default function Home() {
   const [stamp, setStamp] = useState<{ pref: string; no: number; first: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
   const [pendingPref, setPendingPref] = useState<number | null>(null);
   const autoRef = useRef<HTMLInputElement>(null);
@@ -291,6 +293,7 @@ export default function Home() {
 
   const overlays = (
     <>
+      {profileOpen && <ProfileSettings onClose={() => setProfileOpen(false)} />}
       {stamp && (
         <StampCelebration prefName={stamp.pref} no={stamp.no} first={stamp.first}
           onDone={() => setStamp(null)} />
@@ -304,6 +307,7 @@ export default function Home() {
         onLog={() => { setMenuOpen(false); setSpot(null); setView("log"); }}
         onSearch={() => { setMenuOpen(false); setSpot(null); setView("search"); }}
         onShared={() => { setMenuOpen(false); setSpot(null); setView("shared"); }}
+        onProfile={() => { setMenuOpen(false); setProfileOpen(true); }}
         onLogout={() => { setMenuOpen(false); supabase.auth.signOut(); }}
         onCountry={navToCountry}
         onPref={navToPref}

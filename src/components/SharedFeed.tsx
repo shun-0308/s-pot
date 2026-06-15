@@ -61,7 +61,14 @@ export default function SharedFeed({ onBack, onSelectSpot }: { onBack: () => voi
               role={onSelectSpot ? "button" : undefined}
               style={{ padding: "22px 0", borderBottom: "1px solid var(--hairline)", cursor: onSelectSpot ? "pointer" : "default" }}>
               <Photo rec={r} h={210} />
-              <div className="caption" style={{ marginTop: 12 }}>{captionOf(r.pref_code, r.taken_at)}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 12 }}>
+                <div className="caption">{captionOf(r.pref_code, r.taken_at)}</div>
+                {r.display_name && (
+                  <div style={{ fontSize: 10.5, color: "var(--ink-faint)", letterSpacing: "0.1em" }}>
+                    {r.display_name}
+                  </div>
+                )}
+              </div>
               <div className="tz-serif" style={{ fontSize: 17.5, fontWeight: 700, lineHeight: 1.5, marginTop: 3 }}>
                 {r.name}
               </div>

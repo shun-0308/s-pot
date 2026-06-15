@@ -13,6 +13,7 @@ type Props = {
   onLog: () => void;
   onSearch: () => void;
   onShared: () => void;
+  onProfile: () => void;
   onLogout: () => void;
   onCountry: (code: string) => void; // 地球ズーム経由で国へ
   onPref: (id: number) => void; // 地球→日本ズーム経由で県へ
@@ -36,7 +37,7 @@ const itemStyle: React.CSSProperties = {
 
 export default function SideMenu({
   open, onClose, countryCounts, prefCounts,
-  onGlobe, onLog, onSearch, onShared, onLogout, onCountry, onPref,
+  onGlobe, onLog, onSearch, onShared, onProfile, onLogout, onCountry, onPref,
 }: Props) {
   const [openRegion, setOpenRegion] = useState<number | null>(null);
 
@@ -136,6 +137,9 @@ export default function SideMenu({
         })}
 
         <div style={{ borderTop: "1px solid rgba(237,232,220,0.12)", marginTop: 26, paddingTop: 14 }}>
+          <button style={{ ...itemStyle, color: "#857E70", fontSize: 12 }} onClick={onProfile}>
+            プロフィール設定
+          </button>
           <button style={{ ...itemStyle, color: "#857E70", fontSize: 12 }} onClick={onLogout}>
             ログアウト
           </button>
