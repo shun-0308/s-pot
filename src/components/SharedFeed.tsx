@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Photo from "./Photo";
+import SharedMap from "./SharedMap";
 import { fetchSharedRecords, type RecordWithPhotos } from "@/lib/records";
 import { captionOf } from "@/lib/prefectures";
 
@@ -47,6 +48,10 @@ export default function SharedFeed({ onBack, onSelectSpot }: { onBack: () => voi
             まだ公開された記録がありません。<br />
             記録の作成・編集時に「会員に公開」を選ぶと、ここに表示されます。
           </div>
+        )}
+
+        {records && records.length > 0 && (
+          <SharedMap records={records} onSelect={(r) => onSelectSpot?.(r)} />
         )}
 
         <div style={{ borderTop: records?.length ? "1px solid var(--hairline)" : "none" }}>

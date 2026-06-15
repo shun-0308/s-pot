@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import RecordForm, { VISIBILITY_LABEL, type FormValues } from "./RecordForm";
+import SpotMap from "./SpotMap";
 import { type RecordWithPhotos } from "@/lib/records";
 import { youtubeEmbed } from "@/lib/youtube";
 
@@ -176,7 +177,13 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 14, marginTop: 28, alignItems: "center" }}>
+            {rec.lat != null && rec.lng != null && (
+              <div style={{ marginTop: 24 }}>
+                <SpotMap lat={rec.lat} lng={rec.lng} name={rec.name} dark />
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 14, marginTop: 16, alignItems: "center" }}>
               <span style={{ fontSize: 10.5, color: "var(--dark-faint)", border: "1px solid var(--hairline-dark)", padding: "4px 12px", letterSpacing: "0.14em" }}>
                 {VISIBILITY_LABEL[rec.visibility]}
               </span>
