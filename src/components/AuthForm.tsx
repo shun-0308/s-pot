@@ -7,11 +7,17 @@ export default function AuthForm() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false); // 登録完了→メール確認待ち
 
   const submit = async () => {
     if (!email || !password) return;
+    if (mode === "signup" && !displayName.trim()) {
+      setMsg({ type: "err", text: "表示名を入力してください" });
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -19,21 +25,39 @@ export default function AuthForm() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
         if (error) throw error;
-        if (!data.session)
-          setMsg("確認メールを送りました。メール内のリンクを開いてから、ログインしてください。");
+
+        // メール確認後にdisplay_nameをセット(upsert)
+        // ユーザーが確認メールをクリックしてログインしたタイミングでも
+        // プロフィール設定から変更できるので、ここではmetaに仮保存する
+        if (data.user) {
+          await supabase.from("profiles").upsert({
+            id: data.user.id,
+            display_name: displayName.trim(),
+          });
+        }
+
+        if (!data.session) {
+          setDone(true);
+        }
       }
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "エラーが発生しました");
+      setMsg({ type: "err", text: e instanceof Error ? e.message : "エラーが発生しました" });
     } finally {
       setBusy(false);
     }
   };
 
-  const input = {
+  const input: React.CSSProperties = {
     width: "100%",
-    boxSizing: "border-box" as const,
+    boxSizing: "border-box",
     padding: "12px 13px",
     borderRadius: 0,
     border: "1px solid var(--hairline)",
@@ -42,7 +66,39 @@ export default function AuthForm() {
     marginBottom: 10,
     background: "var(--paper-raise)",
     color: "var(--ink)",
+    outline: "none",
   };
+
+  // 登録完了→メール確認待ち画面
+  if (done) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div className="card" style={{ width: "100%", maxWidth: 360, textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 16 }}>📬</div>
+          <div className="caption" style={{ marginBottom: 8 }}>ALMOST THERE</div>
+          <h2 className="tz-serif" style={{ fontSize: 22, fontWeight: 700, margin: "0 0 16px", letterSpacing: "0.08em" }}>
+            確認メールを送りました
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 2, marginBottom: 24 }}>
+            <strong style={{ color: "var(--ink)" }}>{email}</strong> に届いたメールを開いて、
+            「メールアドレスを確認する」ボタンを押してください。<br />
+            その後、自動でアプリが開きます。
+          </p>
+          <div style={{ borderTop: "1px solid var(--hairline)", paddingTop: 18 }}>
+            <p style={{ fontSize: 11.5, color: "var(--ink-faint)", lineHeight: 1.9 }}>
+              メールが届かない場合は迷惑メールフォルダをご確認ください。
+            </p>
+            <button onClick={() => { setDone(false); setMode("login"); }}
+              style={{ marginTop: 12, background: "none", border: "none", color: "var(--ink-faint)",
+                fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline",
+                textUnderlineOffset: 4 }}>
+              ログイン画面に戻る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -58,9 +114,14 @@ export default function AuthForm() {
           </div>
         </div>
 
+        {mode === "signup" && (
+          <input style={input} type="text" placeholder="表示名（みんなの図鑑に表示されます）"
+            value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus />
+        )}
+
         <input style={input} type="email" placeholder="メールアドレス" value={email}
           onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-        <input style={input} type="password" placeholder="パスワード(6文字以上)" value={password}
+        <input style={input} type="password" placeholder="パスワード（6文字以上）" value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete={mode === "login" ? "current-password" : "new-password"}
           onKeyDown={(e) => e.key === "Enter" && submit()} />
@@ -73,10 +134,11 @@ export default function AuthForm() {
         </button>
 
         {msg && (
-          <p style={{ fontSize: 12.5, color: "var(--shu)", marginTop: 14, lineHeight: 1.9 }}>{msg}</p>
+          <p style={{ fontSize: 12.5, color: msg.type === "err" ? "var(--shu)" : "var(--ink-soft)",
+            marginTop: 14, lineHeight: 1.9 }}>{msg.text}</p>
         )}
 
-        <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMsg(null); }}
+        <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMsg(null); setDisplayName(""); }}
           style={{ display: "block", margin: "20px auto 0", background: "none", border: "none",
             color: "var(--ink-faint)", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
             textDecoration: "underline", textUnderlineOffset: 4, letterSpacing: "0.06em" }}>
