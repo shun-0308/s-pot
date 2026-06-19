@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S-pot — 旅の図鑑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;700;800&family=Zen+Kaku+Gothic+New:wght@300;400&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --navy:       #0a1628;
+  --navy-mid:   #121f33;
+  --gold:       #c9a84c;
+  --gold-light: #e8c96a;
+  --cream:      #f0ebe0;
+  --cream-soft: #9eafc0;
+  --line:       rgba(255,255,255,0.08);
+}
+body {
+  background: var(--navy);
+  color: var(--cream);
+  font-family: 'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', sans-serif;
+  font-weight: 300;
+  line-height: 1.8;
+  overflow-x: hidden;
+}
+
+/* NAV */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 22px 48px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(to bottom, rgba(10,22,40,.85) 0%, transparent 100%);
+}
+.nav-logo {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.25em;
+  color: var(--cream); text-decoration: none;
+}
+.nav-cta {
+  font-size: 11px; letter-spacing: 0.22em;
+  color: var(--gold); border: 1px solid var(--gold);
+  padding: 9px 24px; text-decoration: none;
+  transition: background .2s, color .2s;
+}
+.nav-cta:hover { background: var(--gold); color: var(--navy); }
+
+/* HERO */
+.hero {
+  position: relative;
+  height: 100vh; min-height: 620px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hero-bg {
+  position: absolute; inset: 0;
+  /* 星景写真を使う場合: lp-assets/star-trail.jpg を保存してコメントを切り替え */
+  background: url('lp-assets/star-trail.jpg') center 30%/cover no-repeat,
+              url('https://images.unsplash.com/photo-1439405326854-014607f694d7?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+}
+.hero-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(160deg, rgba(10,22,40,.55) 0%, rgba(10,22,40,.75) 55%, rgba(10,22,40,.97) 100%);
+}
+.hero-content {
+  position: relative; z-index: 1;
+  text-align: center; padding: 0 24px; max-width: 720px;
+}
+.hero-eyebrow {
+  font-size: 10px; letter-spacing: 0.45em; color: var(--gold);
+  margin-bottom: 36px;
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+}
+.hero-eyebrow::before, .hero-eyebrow::after {
+  content: ''; flex: 0 0 52px; height: 1px; background: var(--gold); opacity: 0.5;
+}
+.hero-tagline {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: clamp(13px, 2vw, 17px); font-weight: 400;
+  letter-spacing: 0.22em; color: var(--cream-soft); margin-bottom: 22px;
+}
+.hero-title {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: clamp(42px, 9vw, 78px); font-weight: 800;
+  letter-spacing: 0.05em; line-height: 1.18;
+  color: var(--cream); margin-bottom: 10px;
+}
+.hero-title em { color: var(--gold); font-style: normal; }
+.hero-desc {
+  font-size: clamp(13px, 1.6vw, 15px); color: var(--cream-soft);
+  letter-spacing: 0.12em; line-height: 2.2; margin-bottom: 52px;
+}
+.btn-gold {
+  display: inline-block;
+  font-size: 12px; letter-spacing: 0.28em;
+  color: var(--navy); background: var(--gold);
+  padding: 17px 56px; text-decoration: none;
+  transition: background .2s, transform .15s;
+}
+.btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
+.hero-scroll {
+  position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+  font-size: 9px; letter-spacing: 0.38em; color: var(--cream-soft); opacity: .6;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.hero-scroll::after { content:''; width:1px; height:44px; background:currentColor; }
+
+/* FEATURES */
+.features {
+  padding: 110px 48px 90px;
+  max-width: 1120px; margin: 0 auto;
+}
+.label {
+  font-size: 9px; letter-spacing: 0.48em; color: var(--gold);
+  margin-bottom: 18px; text-transform: uppercase;
+}
+.section-title {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: clamp(26px, 4vw, 42px); font-weight: 700;
+  letter-spacing: 0.06em; line-height: 1.55;
+  color: var(--cream); margin-bottom: 64px;
+}
+.feat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1px; background: var(--line);
+}
+.feat-card {
+  background: var(--navy); padding: 52px 40px;
+}
+.feat-num {
+  font-size: 10px; letter-spacing: 0.32em; color: var(--gold);
+  margin-bottom: 28px;
+}
+.feat-title {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: 21px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--cream); margin-bottom: 18px; line-height: 1.6;
+}
+.feat-body {
+  font-size: 13.5px; color: var(--cream-soft); line-height: 2.3; letter-spacing: 0.04em;
+}
+
+/* QUOTE */
+.quote-section {
+  position: relative; overflow: hidden;
+  padding: 130px 48px;
+}
+.quote-bg {
+  position: absolute; inset: 0;
+  background: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+  opacity: .12;
+}
+.quote-overlay {
+  position: absolute; inset: 0;
+  background: var(--navy-mid);
+  opacity: .75;
+}
+.quote-inner {
+  position: relative; z-index: 1;
+  max-width: 720px; margin: 0 auto; text-align: center;
+}
+.quote-text {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: clamp(24px, 4.5vw, 46px); font-weight: 700;
+  line-height: 1.75; letter-spacing: 0.08em; color: var(--cream);
+  margin-bottom: 36px;
+}
+.quote-text em { color: var(--gold); font-style: normal; }
+.quote-body {
+  font-size: 14px; color: var(--cream-soft); line-height: 2.5; letter-spacing: 0.07em;
+}
+
+/* JOIN */
+.share-section {
+  padding: 110px 48px 90px;
+  max-width: 1120px; margin: 0 auto;
+}
+.share-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1px; background: var(--line); margin-top: 56px;
+}
+.share-card {
+  background: var(--navy); padding: 44px 36px;
+  border-top: 2px solid transparent;
+  transition: border-color .25s;
+}
+.share-card:hover { border-top-color: var(--gold); }
+.share-icon { font-size: 30px; margin-bottom: 24px; }
+.share-title {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: 18px; font-weight: 700; color: var(--cream);
+  letter-spacing: 0.08em; margin-bottom: 12px;
+}
+.share-body { font-size: 13px; color: var(--cream-soft); line-height: 2.2; }
+
+/* CTA */
+.cta-section {
+  position: relative; overflow: hidden;
+  padding: 160px 48px; text-align: center;
+  background: #06101e;
+}
+.cta-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,168,76,.07) 0%, transparent 70%);
+}
+.cta-inner { position: relative; z-index: 1; }
+.cta-title {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: clamp(30px, 5.5vw, 56px); font-weight: 800;
+  letter-spacing: 0.07em; line-height: 1.55;
+  color: var(--cream); margin-bottom: 22px;
+}
+.cta-title em { color: var(--gold); font-style: normal; }
+.cta-body {
+  font-size: 14px; color: var(--cream-soft);
+  letter-spacing: 0.1em; line-height: 2.4; margin-bottom: 56px;
+}
+
+/* FOOTER */
+footer {
+  padding: 28px 48px;
+  border-top: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px;
+}
+.footer-logo {
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: 15px; font-weight: 700; letter-spacing: 0.24em;
+  color: var(--cream-soft);
+}
+.footer-copy { font-size: 11px; color: var(--cream-soft); opacity: .4; letter-spacing: 0.1em; }
+
+/* APP MOCKUP */
+.mockup-section {
+  padding: 100px 48px 90px;
+  background: var(--navy-mid);
+  overflow: hidden;
+}
+.mockup-inner {
+  max-width: 1120px; margin: 0 auto;
+}
+.mockup-phones {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 24px; margin-top: 64px; flex-wrap: wrap;
+}
+.phone {
+  width: 200px; flex-shrink: 0;
+  background: #0d0d0d;
+  border-radius: 32px;
+  border: 2px solid rgba(255,255,255,.12);
+  box-shadow: 0 32px 80px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.04);
+  overflow: hidden; position: relative;
+  transform-origin: bottom center;
+}
+.phone.tall { height: 400px; }
+.phone.mid  { height: 370px; transform: scale(.9) translateY(20px); opacity: .9; }
+.phone.short{ height: 360px; transform: scale(.82) translateY(36px); opacity: .8; }
+.phone-notch {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  width: 64px; height: 10px; background: #0d0d0d;
+  border-radius: 0 0 8px 8px; z-index: 10;
+}
+.phone-screen { width: 100%; height: 100%; overflow: hidden; position: relative; }
+
+/* Screen 1: Globe */
+.screen-globe {
+  background: radial-gradient(ellipse at 40% 50%, #1a2a4a 0%, #050912 70%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 20px 14px 24px;
+}
+.globe-title { font-family: 'Shippori Mincho B1',serif; font-size: 13px; letter-spacing:0.25em; color:var(--cream); margin-bottom:10px; }
+.globe-sub { font-size:7px; letter-spacing:0.3em; color:var(--cream-soft); margin-bottom:18px; }
+.globe-ball {
+  width: 120px; height: 120px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, #1e3a6e 0%, #0a1e45 40%, #050d1f 100%);
+  box-shadow: inset -12px -8px 28px rgba(0,0,0,.6), 0 0 32px rgba(50,120,220,.15);
+  position: relative; margin-bottom: 20px; overflow: hidden;
+}
+.globe-japan {
+  position: absolute; top: 28px; left: 52px;
+  width: 28px; height: 48px;
+  background: #c1452b; clip-path: polygon(30% 0%,70% 5%,90% 20%,85% 50%,70% 75%,40% 95%,15% 80%,5% 55%,10% 28%);
+  filter: drop-shadow(0 0 4px rgba(193,69,43,.6));
+}
+.globe-btn { font-size:8px; letter-spacing:.18em; background:rgba(201,168,76,.15); border:1px solid var(--gold); color:var(--gold); padding:7px 18px; }
+
+/* Screen 2: Prefecture map */
+.screen-map {
+  background: #efe8d8;
+  display: flex; flex-direction: column;
+}
+.map-header { padding:10px 12px 6px; }
+.map-pref { font-family:'Shippori Mincho B1',serif; font-size:16px; font-weight:700; letter-spacing:.12em; color:#2b1f14; }
+.map-pref-en { font-family:'Shippori Mincho B1',serif; font-size:9px; color:#c1452b; font-style:italic; letter-spacing:.08em; }
+.map-tile {
+  flex: 1; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, #c8d8b0 0%, #a8be88 30%, #7a9e60 55%, #6b9058 70%, #8ab5d5 80%, #6fa0c8 100%);
+}
+.map-grid {
+  position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px), linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px);
+  background-size: 28px 28px;
+}
+.map-badge {
+  position: absolute; top: 35%; left: 52%;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #b23a24; color: white; font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4), 0 0 0 3px rgba(178,58,36,.25);
+}
+.map-stats { display:flex; border-top:1px solid rgba(0,0,0,.08); }
+.map-stat { flex:1; text-align:center; padding:6px 0; border-right:1px solid rgba(0,0,0,.08); }
+.map-stat:last-child { border-right:none; }
+.map-stat-n { font-size:13px; font-weight:700; color:#2b1f14; }
+.map-stat-l { font-size:7px; color:#7a6a58; letter-spacing:.04em; }
+
+/* Screen 3: Journey cards */
+.screen-cards {
+  background: #efe8d8;
+  padding: 12px 10px;
+}
+.cards-label { font-family:'Shippori Mincho B1',serif; font-size:12px; color:#2b1f14; margin-bottom:10px; letter-spacing:.04em; }
+.journey-card {
+  background: #f8f4ec; border-radius:4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  margin-bottom:8px; overflow: hidden;
+}
+.card-photo {
+  width: 100%; height: 90px; object-fit: cover;
+  background: linear-gradient(135deg, #ff7b39 0%, #c1452b 30%, #1a3560 60%, #0a1e45 100%);
+  position: relative;
+}
+.card-sunset {
+  background: linear-gradient(180deg, #2a4070 0%, #e87040 35%, #f4a044 55%, #f0c868 70%, #98bfe0 85%, #7eafd5 100%);
+}
+.card-stars {
+  background: radial-gradient(ellipse at 40% 30%, #1a2a5a 0%, #050910 70%);
+  position: relative; overflow: hidden;
+}
+.card-stars::after {
+  content: ''; position: absolute; inset: 0;
+  background: conic-gradient(from 180deg at 40% 30%, transparent 0deg, rgba(200,210,255,.6) 15deg, transparent 30deg, transparent 180deg, rgba(200,210,255,.4) 195deg, transparent 210deg);
+  border-radius: 50%; width: 160%; height: 160%; top: -30%; left: -30%;
+}
+.card-body { padding: 6px 8px; }
+.card-date { font-size:7px; color:#9a8878; letter-spacing:.06em; }
+.card-name { font-family:'Shippori Mincho B1',serif; font-size:11px; font-weight:700; color:#2b1f14; margin:1px 0; }
+.card-desc { font-size:8px; color:#7a6a58; line-height:1.5; }
+
+/* RESPONSIVE */
+@media (max-width: 640px) {
+  nav { padding: 16px 22px; }
+  .features, .quote-section, .share-section, .cta-section, .mockup-section { padding-left: 22px; padding-right: 22px; }
+  footer { padding: 22px; flex-direction: column; text-align: center; }
+  .feat-card, .share-card { padding: 36px 24px; }
+  .phone.mid, .phone.short { display: none; }
+  .phone.tall { width: 180px; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">S·POT</a>
+  <a class="nav-cta" href="https://s-pot.vercel.app">旅図鑑を作る</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">TRAVEL JOURNAL APP</div>
+    <p class="hero-tagline">自然と旅と写真が好きな人へ。</p>
+    <h1 class="hero-title">旅の記録が、<br><em>地図</em>になる。</h1>
+    <p class="hero-desc">行った場所が、光になる。<br>世界中どこでも記録できる、あなただけの旅図鑑。</p>
+    <a class="btn-gold" href="https://s-pot.vercel.app">旅図鑑を作る ↗</a>
+  </div>
+  <div class="hero-scroll">SCROLL</div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="label">FEATURES</div>
+  <h2 class="section-title">S-pot でできること</h2>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-num">01</div>
+      <h3 class="feat-title">世界中どこでも<br>記録できる</h3>
+      <p class="feat-body">場所の詳細はもちろん、撮影に役立つロケハン情報（光の向き・アクセス・三脚可否など）もまるごと記録。写真と一緒に残せるから、次に行くときも迷わない。</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">02</div>
+      <h3 class="feat-title">行った場所が<br>地図で光る</h3>
+      <p class="feat-body">記録した場所がすべて世界地図のピンになる。自分の軌跡が地図に刻まれるから、次の旅先を探す楽しみが増える。世界中に灯をともしていこう。</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">03</div>
+      <h3 class="feat-title">シェアの範囲を<br>自分で決める</h3>
+      <p class="feat-body">全体公開・URLを知る人のみ・完全非公開の3段階で管理。大切な場所は自分だけの秘密に、お気に入りは仲間とシェアしよう。</p>
+    </div>
+  </div>
+</section>
+
+<!-- QUOTE -->
+<section class="quote-section">
+  <div class="quote-bg"></div>
+  <div class="quote-overlay"></div>
+  <div class="quote-inner">
+    <div class="label" style="margin-bottom:28px;">CONCEPT</div>
+    <p class="quote-text">旅は行くより、<em>記録する</em>ことで<br>もっと深まる。</p>
+    <p class="quote-body">
+      写真は撮ったあとに眠ってしまいがち。<br>
+      S-pot は、場所・写真・記録文を一冊の図鑑にまとめる。<br>
+      旅が終わっても、記憶は地図の上でずっと生き続ける。
+    </p>
+  </div>
+</section>
+
+<!-- APP MOCKUP -->
+<section class="mockup-section">
+  <div class="mockup-inner">
+    <div class="label">APP PREVIEW</div>
+    <h2 class="section-title">旅が、地図で<br>生きはじめる。</h2>
+    <div class="mockup-phones">
+
+      <!-- Phone 1: Globe view -->
+      <div class="phone mid">
+        <div class="phone-notch"></div>
+        <div class="phone-screen" style="background:#050912;">
+          <img src="https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?auto=format&fit=crop&w=600&q=80" alt="S-pot globe view"
+               style="width:100%;height:100%;object-fit:cover;object-position:center;">
+          <div class="css-fallback screen-globe" style="display:none;width:100%;height:100%;flex-direction:column;align-items:center;justify-content:center;padding:20px 14px 24px;">
+            <div class="globe-sub">MY TRAVEL ATLAS</div>
+            <div class="globe-title">S-pot</div>
+            <div class="globe-ball"><div class="globe-japan"></div></div>
+            <div class="globe-btn">写真から自動記録</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phone 2: Japan map (center/tall) -->
+      <div class="phone tall">
+        <div class="phone-notch"></div>
+        <div class="phone-screen" style="background:#efe8d8;">
+          <img src="https://images.unsplash.com/photo-1480796927426-f609979314bd?auto=format&fit=crop&w=600&q=80" alt="S-pot Japan map"
+               style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+          <div class="css-fallback screen-map" style="display:none;width:100%;height:100%;flex-direction:column;">
+            <div class="map-header">
+              <div class="map-pref">神 奈 川 県</div>
+              <div class="map-pref-en">Kanagawa</div>
+            </div>
+            <div class="map-tile"><div class="map-grid"></div><div class="map-badge" style="top:45%;left:65%">1</div></div>
+            <div class="map-stats">
+              <div class="map-stat"><div class="map-stat-n">1</div><div class="map-stat-l">記録</div></div>
+              <div class="map-stat"><div class="map-stat-n">8</div><div class="map-stat-l">写真</div></div>
+              <div class="map-stat"><div class="map-stat-n">3%</div><div class="map-stat-l">踏破率</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phone 3: Record detail -->
+      <div class="phone short">
+        <div class="phone-notch"></div>
+        <div class="phone-screen" style="background:#1a1a1a;">
+          <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80" alt="S-pot record detail"
+               style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+          <div class="css-fallback screen-cards" style="display:none;width:100%;height:100%;padding:12px 10px;">
+            <div class="cards-label">Recent journey <span style="font-size:9px;color:#9a8878;float:right">2件</span></div>
+            <div class="journey-card">
+              <div class="card-photo card-sunset"></div>
+              <div class="card-body">
+                <div class="card-date">2026.06.15</div>
+                <div class="card-name">大三島</div>
+                <div class="card-desc">夕陽が最高にキレイだった</div>
+              </div>
+            </div>
+            <div class="journey-card">
+              <div class="card-photo card-stars"></div>
+              <div class="card-body">
+                <div class="card-name">台（ウテナ）海水浴場</div>
+                <div class="card-desc">夜はとにかく静か。波の音しか聞こえない</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- JOIN -->
+<section class="share-section">
+  <div class="label">JOIN US</div>
+  <h2 class="section-title">みんなの図鑑を<br>のぞいてみよう</h2>
+  <div class="share-grid">
+    <div class="share-card">
+      <div class="share-icon">🗺</div>
+      <div class="share-title">みんなの図鑑</div>
+      <p class="share-body">会員が公開した記録を地図から探せる。知らなかった絶景スポットや撮影地のヒントが見つかる。</p>
+    </div>
+    <div class="share-card">
+      <div class="share-icon">📷</div>
+      <div class="share-title">ロケハン情報</div>
+      <p class="share-body">ベストな時間帯・光の条件・三脚の可否など、撮影者目線の情報が詰まったスポット記録。</p>
+    </div>
+    <div class="share-card">
+      <div class="share-icon">🔒</div>
+      <div class="share-title">プライバシー設定</div>
+      <p class="share-body">全公開・限定公開・非公開を記録ごとに設定可能。大切な場所は自分だけの宝物として。</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <div class="cta-inner">
+    <div class="label" style="margin-bottom:28px;">START YOUR JOURNEY</div>
+    <h2 class="cta-title">あなたの旅を、<br><em>地図</em>に刻もう。</h2>
+    <p class="cta-body">
+      S-pot は、旅と写真が好きな人のための<br>
+      記録型メンバーシップ図鑑です。
+    </p>
+    <a class="btn-gold" href="https://s-pot.vercel.app">旅図鑑を作る ↗</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">S·POT</div>
+  <div class="footer-copy">© 2026 S-pot. All rights reserved.</div>
+</footer>
+
+</body>
+</html>
