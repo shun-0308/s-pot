@@ -77,9 +77,15 @@ export default function PrefPage({
   const stats = useMemo(() => {
     const photos = records.reduce((s, r) => s + r.photos.length, 0);
     const bb = mainRingBboxOf(pref.d);
-    const pts = records
+    // GPS座標のある記録を投影
+    const gpsPoints = records
       .filter((r) => r.lat != null && r.lng != null)
       .map((r) => projGeo(r.lng!, r.lat!) as [number, number]);
+    // GPS無しの記録は県の中心座標で代替(「訪れた場所」のカウントに含める)
+    const noGpsPoints = records
+      .filter((r) => r.lat == null || r.lng == null)
+      .map(() => [pref.cx, pref.cy] as [number, number]);
+    const pts = [...gpsPoints, ...noGpsPoints];
     const grid = pref.id === 47
       ? { total: 1, visited: records.length ? 1 : 0 }
       : prefGridStats(pref, pts, bb, 8);

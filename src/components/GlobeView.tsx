@@ -266,7 +266,6 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
     let lastPick = 0;
     let dragging = false, downAt = { x: 0, y: 0 }, moved = false;
     let lastInteract = 0;
-    let touchSelected: Country | null = null;
 
     const raycaster = new THREE.Raycaster();
 
@@ -371,7 +370,9 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
       lastInteract = performance.now();
       if (dragging && mode === "free") {
         const dx = e.clientX - downAt.x, dy = e.clientY - downAt.y;
-        if (Math.abs(dx) + Math.abs(dy) > 5) moved = true;
+        // タッチは指のブレでドラッグ誤判定されやすいのでしきい値を広げる
+        const slop = e.pointerType === "touch" ? 14 : 5;
+        if (Math.abs(dx) + Math.abs(dy) > slop) moved = true;
         if (moved) {
           const s = 0.22 / Math.sqrt(zoomMul);
           center = [center[0] - dx * s, Math.max(-60, Math.min(60, center[1] + dy * s))];
@@ -385,13 +386,8 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
       dragging = false;
       if (wasDrag || mode !== "free") return;
       const c = pick(e.clientX, e.clientY);
-      if (!c) { touchSelected = null; return; }
-      if (e.pointerType === "touch" && touchSelected?.code !== c.code) {
-        touchSelected = c;
-        hover = c;
-        hlDirty = true;
-        return;
-      }
+      if (!c) return;
+      // マウスもタッチも「タップ＝その国をひらく」に統一(分かりやすさ優先)
       activate(c);
     };
     const onLeave = () => { mouse.inside = false; hover = null; hlDirty = true; };

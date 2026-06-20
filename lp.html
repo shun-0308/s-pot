@@ -1,0 +1,2051 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>S-pot — 旅の記録が、あなたの地図になる。</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Noto+Serif+JP:wght@300;400;600&family=Inter:wght@300;400;500&display=swap');
+
+    :root {
+      --gold: #C9A84C;
+      --gold-light: #E8C97A;
+      --cream: #F5EDD8;
+      --dark: #0A0C14;
+      --dark2: #111520;
+      --dark3: #1A1E2E;
+      --star-blue: #0D1B3E;
+      --orange: #E8773A;
+      --orange-light: #F4A261;
+      --text-light: rgba(245,237,216,0.85);
+      --text-dim: rgba(245,237,216,0.5);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--dark);
+      color: var(--cream);
+      font-family: 'Noto Serif JP', 'Cormorant Garamond', Georgia, serif;
+      overflow-x: hidden;
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      overflow: hidden;
+      /* Deep blue sky matching the star trail photo */
+      background:
+        radial-gradient(ellipse at 50% 0%, #0B1835 0%, transparent 55%),
+        radial-gradient(ellipse at 20% 100%, rgba(180,120,40,0.18) 0%, transparent 45%),
+        radial-gradient(ellipse at 80% 98%, rgba(200,140,50,0.12) 0%, transparent 40%),
+        linear-gradient(180deg, #07111F 0%, #0A1828 35%, #0D1E35 55%, #0A1520 75%, #050A10 88%, #000 100%);
+    }
+
+    /* ── Photo background layer ── */
+    .hero-photo {
+      position: absolute;
+      inset: 0;
+      background-image: url('hero.png');
+      background-size: cover;
+      background-position: center 20%;
+      opacity: 1;
+    }
+
+    /* ── Atmosphere overlay ── */
+    .hero-atmos {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 50% 42%, transparent 0%, rgba(0,0,0,0.25) 70%),
+        linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.1) 30%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.85) 100%);
+      pointer-events: none;
+    }
+
+    /* ── Star field (hidden when real photo is used) ── */
+    .stars {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: none;
+    }
+    .star {
+      position: absolute;
+      border-radius: 50%;
+      background: white;
+      animation: twinkle var(--d) ease-in-out infinite alternate;
+    }
+    @keyframes twinkle {
+      from { opacity: var(--min); transform: scale(1); }
+      to   { opacity: var(--max); transform: scale(1.4); }
+    }
+
+    /* ── Concentric star trails (hidden: using real photo) ── */
+    .star-trails { display: none; }
+    .star-trails-hidden {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 72%;           /* trails fill upper 72% of hero */
+      pointer-events: none;
+      overflow: visible;
+    }
+    /* Each trail ring rotates slowly */
+    @keyframes trail-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* ── Warm ground glow (recreating the lights from the photo) ── */
+    .hero-ground-glow {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 45%;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse at 18% 100%, rgba(220,160,60,0.22) 0%, transparent 45%),
+        radial-gradient(ellipse at 82% 100%, rgba(200,140,50,0.15) 0%, transparent 38%),
+        radial-gradient(ellipse at 50% 105%, rgba(80,100,140,0.08) 0%, transparent 50%);
+    }
+
+    /* ── Foreground silhouette (hidden: real photo has it) ── */
+    .hero-silhouette { display: none; }
+
+    .hero-subtitle {
+      font-size: clamp(14px, 2.8vw, 20px);
+      font-weight: 300;
+      letter-spacing: 0.22em;
+      color: var(--gold-light);
+      margin-top: -16px;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 2;
+      text-shadow: 0 0 30px rgba(201,168,76,0.5);
+    }
+    .hero-subtitle-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(10px, 1.6vw, 13px);
+      font-style: italic;
+      letter-spacing: 0.18em;
+      color: rgba(201,168,76,0.45);
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-badge {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      opacity: 0.9;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-icon {
+      font-size: 52px;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 20px rgba(201,168,76,0.6));
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-title {
+      position: relative;
+      z-index: 2;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(64px, 12vw, 108px);
+      font-weight: 400;
+      font-style: normal;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      background: linear-gradient(160deg, #fff 0%, var(--gold-light) 50%, var(--orange-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 28px;
+      filter: drop-shadow(0 0 40px rgba(201,168,76,0.3));
+    }
+
+    .hero-tagline {
+      font-size: clamp(15px, 3vw, 22px);
+      font-weight: 300;
+      letter-spacing: 0.1em;
+      color: var(--text-light);
+      margin-bottom: 8px;
+      line-height: 1.7;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-tagline-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(12px, 2vw, 16px);
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      font-style: italic;
+      margin-bottom: 56px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-cta {
+      position: relative;
+      z-index: 2;
+      display: inline-block;
+      padding: 18px 56px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--orange) 100%);
+      color: #fff;
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      box-shadow: 0 0 40px rgba(201,168,76,0.35), 0 8px 32px rgba(0,0,0,0.5);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 0 60px rgba(201,168,76,0.5), 0 12px 40px rgba(0,0,0,0.6); }
+    .hero-cta:hover::before { opacity: 1; }
+
+    .hero-scroll {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      opacity: 0.4;
+      animation: float 2s ease-in-out infinite;
+    }
+    .hero-scroll span {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--cream);
+    }
+    .hero-scroll-line {
+      width: 1px;
+      height: 48px;
+      background: linear-gradient(to bottom, var(--cream), transparent);
+    }
+    @keyframes float {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50%       { transform: translateX(-50%) translateY(8px); }
+    }
+
+    /* Horizon glow */
+    .hero-glow {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 300px;
+      background: linear-gradient(to top, rgba(232,119,58,0.12) 0%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* ─── CAMPAIGN BANNER ─── */
+    .campaign {
+      background: linear-gradient(135deg, #1A0E05 0%, #2A1508 50%, #1A0E05 100%);
+      border-top: 1px solid rgba(201,168,76,0.2);
+      border-bottom: 1px solid rgba(201,168,76,0.2);
+      padding: 48px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .campaign::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 50%, rgba(201,168,76,0.08) 0%, transparent 70%);
+    }
+
+    .campaign-label {
+      display: inline-block;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--gold);
+      border: 1px solid var(--gold);
+      padding: 4px 16px;
+      margin-bottom: 20px;
+    }
+
+    .campaign-title {
+      font-size: clamp(18px, 4vw, 28px);
+      font-weight: 300;
+      color: var(--cream);
+      margin-bottom: 6px;
+      letter-spacing: 0.05em;
+    }
+    .campaign-title-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 14px;
+      color: var(--text-dim);
+      font-style: italic;
+      letter-spacing: 0.15em;
+      margin-bottom: 32px;
+    }
+
+    .price-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .price-original {
+      font-family: 'Inter', sans-serif;
+      font-size: 18px;
+      color: var(--text-dim);
+      text-decoration: line-through;
+    }
+    .price-arrow {
+      color: var(--gold);
+      font-size: 20px;
+    }
+    .price-campaign {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(36px, 8vw, 64px);
+      font-weight: 300;
+      color: var(--gold-light);
+      line-height: 1;
+    }
+    .price-campaign sup {
+      font-size: 0.45em;
+      vertical-align: top;
+      padding-top: 0.3em;
+    }
+    .price-unit {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      margin-top: 4px;
+    }
+    .price-note {
+      font-size: 11px;
+      color: var(--orange-light);
+      letter-spacing: 0.05em;
+    }
+
+    /* Countdown */
+    .countdown-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+    .countdown {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 8px;
+    }
+    .cd-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .cd-num {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(32px, 6vw, 52px);
+      font-weight: 300;
+      color: var(--cream);
+      line-height: 1;
+      min-width: 2ch;
+      text-align: center;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(201,168,76,0.15);
+      padding: 8px 16px;
+    }
+    .cd-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 8px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .cd-sep {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 40px;
+      color: var(--gold);
+      opacity: 0.5;
+      margin-top: 4px;
+      line-height: 1.2;
+    }
+
+    /* ─── SECTION BASE ─── */
+    section {
+      padding: 100px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-badge {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(26px, 5vw, 44px);
+      font-weight: 300;
+      letter-spacing: 0.05em;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .section-title-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(13px, 2vw, 17px);
+      color: var(--text-dim);
+      font-style: italic;
+      letter-spacing: 0.15em;
+      margin-bottom: 40px;
+    }
+    .divider {
+      width: 40px;
+      height: 1px;
+      background: linear-gradient(to right, var(--gold), transparent);
+      margin-bottom: 40px;
+    }
+
+    /* ─── CONCEPT ─── */
+    .concept-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    @media (max-width: 768px) {
+      .concept-wrap { grid-template-columns: 1fr; gap: 40px; }
+    }
+    .concept-text p {
+      font-size: 15px;
+      line-height: 2;
+      color: var(--text-light);
+      margin-bottom: 16px;
+      font-weight: 300;
+    }
+    .concept-text p.en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 14px;
+      font-style: italic;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+    .concept-visual {
+      position: relative;
+      aspect-ratio: 3/4;
+      border: 1px solid rgba(201,168,76,0.15);
+      overflow: hidden;
+    }
+    .concept-visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
+    .concept-visual-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
+    }
+
+    /* ─── FEATURES ─── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 380px);
+      gap: 3px;
+    }
+    @media (max-width: 640px) {
+      .features-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+    }
+
+    .feature-card {
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+    }
+
+    /* Photo background per card */
+    .feature-card-bg {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transition: transform 0.7s ease;
+      filter: brightness(0.65) saturate(0.9);
+    }
+    .feature-card:hover .feature-card-bg {
+      transform: scale(1.06);
+      filter: brightness(0.78) saturate(1.0);
+    }
+
+    /* Dark gradient overlay */
+    .feature-card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        160deg,
+        rgba(0,0,0,0.05) 0%,
+        rgba(0,0,0,0.18) 40%,
+        rgba(0,0,0,0.62) 100%
+      );
+      transition: background 0.4s;
+    }
+    .feature-card:hover .feature-card-overlay {
+      background: linear-gradient(
+        160deg,
+        rgba(0,0,0,0.02) 0%,
+        rgba(0,0,0,0.12) 40%,
+        rgba(0,0,0,0.55) 100%
+      );
+    }
+
+    /* Gold top-left accent line */
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 40px; height: 2px;
+      background: var(--gold);
+      z-index: 2;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.4s ease;
+    }
+    .feature-card:hover::before { transform: scaleX(1); }
+
+    .feature-content {
+      position: absolute;
+      inset: 0;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      z-index: 2;
+    }
+
+    .feature-num {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 88px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.06);
+      line-height: 1;
+      position: absolute;
+      top: 24px;
+      right: 32px;
+      letter-spacing: -0.02em;
+      transition: color 0.4s;
+    }
+    .feature-card:hover .feature-num { color: rgba(201,168,76,0.12); }
+
+    .feature-title-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 11px;
+      font-style: italic;
+      color: var(--gold);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      opacity: 0.85;
+    }
+    .feature-title {
+      font-size: clamp(18px, 2.2vw, 24px);
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      color: #fff;
+      margin-bottom: 14px;
+      line-height: 1.3;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    }
+    .feature-desc {
+      font-size: 12px;
+      line-height: 1.85;
+      color: rgba(255,255,255,0.6);
+      font-weight: 300;
+      max-width: 340px;
+      transition: color 0.3s;
+    }
+    .feature-card:hover .feature-desc { color: rgba(255,255,255,0.75); }
+
+    /* Gold divider before desc */
+    .feature-divider {
+      width: 28px;
+      height: 1px;
+      background: var(--gold);
+      margin-bottom: 14px;
+      opacity: 0.6;
+    }
+
+    /* ─── SCREENSHOTS ─── */
+    .screenshots-section {
+      background: linear-gradient(180deg, var(--dark) 0%, var(--star-blue) 50%, var(--dark) 100%);
+      padding: 100px 0;
+      overflow: hidden;
+    }
+    .screenshots-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .screenshots-scroll {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding: 40px 24px;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-snap-type: x mandatory;
+    }
+    .screenshots-scroll::-webkit-scrollbar { display: none; }
+
+    .screen-card {
+      flex: 0 0 220px;
+      scroll-snap-align: center;
+      background: var(--dark3);
+      border: 1px solid rgba(201,168,76,0.12);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      transition: transform 0.3s;
+    }
+    .screen-card:hover { transform: translateY(-8px) scale(1.02); }
+
+    .screen-inner {
+      aspect-ratio: 9/19;
+      position: relative;
+      overflow: hidden;
+    }
+    .screen-inner img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .screen-label {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--text-dim);
+      padding: 12px 0 0;
+    }
+
+    /* ─── STORY ─── */
+    .story-section {
+      position: relative;
+      background: linear-gradient(to bottom, var(--dark), #0A0D1A);
+    }
+    .story-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url('startrail.jpg');
+      background-size: cover;
+      background-position: center top;
+      opacity: 0.22;
+      pointer-events: none;
+    }
+    .voice-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 56px;
+    }
+    @media (max-width: 768px) {
+      .voice-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .voice-grid { grid-template-columns: 1fr; }
+    }
+    .voice-card {
+      position: relative;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 28px 24px 24px;
+      transition: transform 0.3s ease, background 0.3s ease;
+    }
+    .voice-card:hover {
+      transform: translateY(-4px);
+      background: rgba(255,255,255,0.08);
+    }
+    .voice-card.accent-gold  { border-color: rgba(201,168,76,0.35); }
+    .voice-card.accent-blue  { border-color: rgba(100,160,220,0.35); }
+    .voice-card.accent-rose  { border-color: rgba(220,120,100,0.35); }
+    .voice-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border-radius: 20px;
+      padding: 4px 10px;
+      margin-bottom: 16px;
+    }
+    .voice-card.accent-gold .voice-tag  { background: rgba(201,168,76,0.15); color: var(--gold); }
+    .voice-card.accent-blue .voice-tag  { background: rgba(100,160,220,0.15); color: #82bfff; }
+    .voice-card.accent-rose .voice-tag  { background: rgba(220,120,100,0.15); color: #f4a58a; }
+    .voice-text {
+      font-size: 14px;
+      line-height: 1.9;
+      color: rgba(255,255,255,0.88);
+      font-weight: 400;
+      margin-bottom: 0;
+    }
+    .voice-emoji {
+      font-size: 22px;
+      position: absolute;
+      top: -12px;
+      right: 18px;
+    }
+    .voice-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .voice-list li {
+      font-size: 14px;
+      line-height: 1.75;
+      color: rgba(255,255,255,0.88);
+      padding-left: 20px;
+      position: relative;
+    }
+    .voice-list li::before {
+      content: '―';
+      position: absolute;
+      left: 0;
+      opacity: 0.4;
+      font-size: 11px;
+      top: 3px;
+    }
+
+    /* ─── CLOSING NOTICE ─── */
+    .closing-notice {
+      background: linear-gradient(135deg, rgba(201,168,76,0.08) 0%, rgba(100,120,200,0.06) 100%);
+      border-top: 1px solid rgba(201,168,76,0.15);
+      border-bottom: 1px solid rgba(201,168,76,0.15);
+      padding: 28px 24px;
+      text-align: center;
+    }
+    .closing-notice-inner {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .closing-notice-text {
+      font-size: 13px;
+      line-height: 2;
+      color: rgba(255,255,255,0.72);
+      margin: 0;
+    }
+    .closing-notice-text strong {
+      color: var(--gold-light);
+      font-weight: 500;
+    }
+
+    /* ─── S-LAB ─── */
+    .slab-section {
+      padding: 100px 24px;
+      background: linear-gradient(to bottom, #0A0D1A, var(--dark));
+    }
+    .slab-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .slab-card {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      margin-top: 48px;
+      min-height: 460px;
+      display: flex;
+      align-items: flex-end;
+    }
+    .slab-card-bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('4B98165A-C5DF-47AC-A4E5-563BD620DD07.JPEG');
+      background-size: cover;
+      background-position: center 30%;
+      filter: brightness(0.55) saturate(0.85);
+      transition: transform 0.8s ease;
+    }
+    .slab-card:hover .slab-card-bg {
+      transform: scale(1.03);
+    }
+    .slab-card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(5,8,18,0.95) 0%,
+        rgba(5,8,18,0.6) 50%,
+        rgba(5,8,18,0.1) 100%
+      );
+    }
+    .slab-card-content {
+      position: relative;
+      z-index: 2;
+      padding: 48px;
+      width: 100%;
+    }
+    .slab-coming {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+    }
+    .slab-title {
+      font-family: 'Noto Serif JP', serif;
+      font-size: clamp(22px, 4vw, 36px);
+      font-weight: 300;
+      color: #fff;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    .slab-body {
+      font-size: 13px;
+      line-height: 2;
+      color: rgba(255,255,255,0.72);
+      max-width: 560px;
+      margin-bottom: 28px;
+    }
+    .slab-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .slab-feat {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: rgba(255,255,255,0.8);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 6px 14px;
+    }
+    .slab-note {
+      font-size: 12px;
+      color: var(--gold-light);
+      background: rgba(201,168,76,0.1);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 8px;
+      padding: 12px 18px;
+      display: inline-block;
+      letter-spacing: 0.03em;
+    }
+    .slab-note strong { color: var(--gold); }
+    .slab-screens {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    @media (max-width: 768px) {
+      .slab-screens { grid-template-columns: 1fr; }
+    }
+    .slab-screen-item {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: transform 0.3s ease;
+    }
+    .slab-screen-item:hover { transform: translateY(-4px); }
+    .slab-screen-item img {
+      width: 100%;
+      display: block;
+      object-fit: cover;
+      height: 180px;
+    }
+    .slab-screen-label {
+      background: rgba(255,255,255,0.04);
+      padding: 10px 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    /* ─── TERMS ─── */
+    .terms-section {
+      background: #060810;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 80px 24px;
+    }
+    .terms-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .terms-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 48px;
+    }
+    @media (max-width: 768px) {
+      .terms-grid { grid-template-columns: 1fr; }
+    }
+    .terms-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .terms-block-title {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(201,168,76,0.2);
+    }
+    .terms-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .terms-list li {
+      font-size: 12px;
+      line-height: 1.8;
+      color: rgba(255,255,255,0.55);
+      padding-left: 16px;
+      position: relative;
+    }
+    .terms-list li::before {
+      content: '·';
+      position: absolute;
+      left: 4px;
+      color: var(--gold);
+      opacity: 0.5;
+    }
+
+    /* ─── DOWNLOAD CTA ─── */
+    .cta-section {
+      padding: 120px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url('IMG_7930.png');
+      background-size: cover;
+      background-position: center 30%;
+      opacity: 0.5;
+    }
+    .cta-section::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(5,6,10,0.7) 0%, rgba(10,12,20,0.55) 50%, rgba(5,6,10,0.8) 100%);
+    }
+
+    .cta-title {
+      font-size: clamp(24px, 5vw, 48px);
+      font-weight: 300;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .cta-title-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(14px, 2.5vw, 20px);
+      color: var(--text-dim);
+      font-style: italic;
+      letter-spacing: 0.2em;
+      margin-bottom: 48px;
+    }
+
+    .cta-btn-wrap {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 48px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--orange) 100%);
+      color: #fff;
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      box-shadow: 0 0 50px rgba(201,168,76,0.3), 0 12px 40px rgba(0,0,0,0.5);
+      transition: all 0.3s;
+    }
+    .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 0 70px rgba(201,168,76,0.45), 0 16px 50px rgba(0,0,0,0.6); }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 48px;
+      background: transparent;
+      color: var(--cream);
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: 1px solid rgba(201,168,76,0.4);
+      border-radius: 2px;
+      transition: all 0.3s;
+    }
+    .btn-secondary:hover { border-color: var(--gold); background: rgba(201,168,76,0.05); }
+
+    .cta-note {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      background: #050608;
+      border-top: 1px solid rgba(201,168,76,0.1);
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .footer-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px;
+      font-weight: 300;
+      letter-spacing: 0.2em;
+      background: linear-gradient(135deg, var(--gold-light), var(--orange-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .footer-tagline {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      margin-bottom: 24px;
+    }
+    .footer-copy {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      color: rgba(245,237,216,0.2);
+      letter-spacing: 0.1em;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(10,12,20,0.9), transparent);
+      backdrop-filter: blur(0px);
+      transition: all 0.3s;
+    }
+    nav.scrolled {
+      background: rgba(10,12,20,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(201,168,76,0.1);
+      padding: 16px 40px;
+    }
+    .nav-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: 0.15em;
+      background: linear-gradient(135deg, var(--gold-light), var(--orange-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+    }
+    .nav-cta {
+      display: inline-block;
+      padding: 10px 28px;
+      background: linear-gradient(135deg, var(--gold), var(--orange));
+      color: #fff;
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border-radius: 1px;
+      transition: all 0.3s;
+    }
+    .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(201,168,76,0.4); }
+
+    /* ─── MISC ─── */
+    .text-gold { color: var(--gold); }
+    .mt-8 { margin-top: 8px; }
+
+    /* Screen mockup drawings */
+    .mock-status {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'Inter', sans-serif;
+      font-size: 8px;
+      margin-bottom: 12px;
+      opacity: 0.7;
+    }
+    .mock-globe-circle {
+      position: absolute;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #1a3a6e 0%, #0a1830 60%, #040c1e 100%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -55%);
+      box-shadow: inset -8px -8px 20px rgba(0,0,0,0.5), 0 0 40px rgba(13,27,62,0.8);
+      overflow: hidden;
+    }
+    .mock-globe-japan {
+      position: absolute;
+      top: 20%;
+      right: 20%;
+      width: 35px;
+      height: 45px;
+      background: rgba(180,60,60,0.8);
+      border-radius: 30% 40% 50% 30% / 40% 50% 40% 30%;
+      box-shadow: 0 0 8px rgba(180,60,60,0.5);
+    }
+    .mock-globe-text {
+      position: absolute;
+      bottom: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      color: var(--cream);
+      font-size: 8px;
+      letter-spacing: 0.15em;
+      font-family: 'Inter', sans-serif;
+    }
+    .mock-globe-btn {
+      position: absolute;
+      bottom: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 2px;
+      padding: 6px 16px;
+      font-size: 7px;
+      font-family: 'Inter', sans-serif;
+      color: var(--cream);
+      white-space: nowrap;
+      letter-spacing: 0.1em;
+    }
+
+    /* Polaroid photos in detail screen */
+    .mock-photos {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .mock-photo {
+      background: rgba(255,255,255,0.08);
+      aspect-ratio: 4/3;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    .mock-photo-inner {
+      inset: 0;
+      background: var(--photo-bg, rgba(100,150,120,0.3));
+      position: absolute;
+    }
+
+    /* Map screen colors */
+    .mock-map-bg {
+      background: linear-gradient(160deg, #6B8E6B 0%, #4A6B4A 50%, #3D5E3D 100%);
+      border-radius: 4px;
+      position: absolute;
+      inset: 0;
+    }
+    .mock-pin {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 8px rgba(201,168,76,0.8);
+    }
+
+    /* ── Download Modal ── */
+    #dl-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(4,6,14,0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #dl-modal.open { display: flex; }
+
+    .dl-modal-box {
+      background: linear-gradient(160deg, rgba(20,24,44,0.98) 0%, rgba(10,12,28,0.98) 100%);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 24px;
+      padding: 40px 36px 36px;
+      max-width: 480px;
+      width: 100%;
+      position: relative;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 60px rgba(201,168,76,0.08);
+    }
+
+    .dl-modal-close {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: rgba(255,255,255,0.35);
+      font-size: 22px;
+      line-height: 1;
+      padding: 4px 8px;
+      transition: color 0.2s;
+    }
+    .dl-modal-close:hover { color: rgba(255,255,255,0.75); }
+
+    .dl-modal-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 26px;
+      font-weight: 400;
+      font-style: normal;
+      color: var(--gold-light);
+      margin: 0 0 6px;
+      letter-spacing: 0.05em;
+    }
+    .dl-modal-subtitle {
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 28px;
+    }
+
+    .dl-modal-os {
+      margin-bottom: 24px;
+    }
+    .dl-modal-os-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 12px;
+    }
+    .dl-modal-os-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+    }
+
+    .dl-modal-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .dl-modal-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .dl-step-num {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      border-radius: 50%;
+      background: rgba(201,168,76,0.12);
+      border: 1px solid rgba(201,168,76,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-top: 1px;
+    }
+    .dl-step-text {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: rgba(255,255,255,0.82);
+    }
+    .dl-step-text em {
+      font-style: normal;
+      color: rgba(255,255,255,1);
+      font-weight: 600;
+    }
+
+    .dl-modal-divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 24px 0;
+    }
+
+    .dl-modal-proceed {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 15px 28px;
+      background: linear-gradient(135deg, var(--gold) 0%, #b8933a 100%);
+      border: none;
+      border-radius: 50px;
+      color: #0a0c1a;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-decoration: none;
+    }
+    .dl-modal-proceed:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(201,168,76,0.4);
+    }
+    .dl-modal-proceed svg {
+      opacity: 0.7;
+    }
+
+    /* Animate in */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="#" class="nav-logo">S-pot</a>
+  <a href="https://s-pot.vercel.app" class="nav-cta" target="_blank">Download</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <!-- Real photo layer (optional: set CSS var --hero-photo-url if image is available) -->
+  <div class="hero-photo" id="heroPhoto"></div>
+
+  <!-- Stars background -->
+  <div class="stars" id="stars"></div>
+
+  <!-- Concentric star trail rings (animated) -->
+  <svg class="star-trails" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice"
+       fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Fade mask: bright at top-center, fade out toward edges and bottom -->
+      <radialGradient id="trailMask" cx="50%" cy="44%" r="58%">
+        <stop offset="0%"  stop-color="white" stop-opacity="1"/>
+        <stop offset="55%" stop-color="white" stop-opacity="0.7"/>
+        <stop offset="85%" stop-color="white" stop-opacity="0.15"/>
+        <stop offset="100%" stop-color="white" stop-opacity="0"/>
+      </radialGradient>
+      <mask id="msk"><rect width="1000" height="720" fill="url(#trailMask)"/></mask>
+    </defs>
+
+    <!-- All rings share the mask and rotate from the focal point -->
+    <g mask="url(#msk)">
+      <!-- Focal point: 50% x, 44% y in viewBox = (500, 317) -->
+      <!-- Ring radii increase outward; each gets dasharray to create "dashes" like long-exposure trails -->
+
+      <!-- Innermost glow at pole -->
+      <circle cx="500" cy="317" r="8"  fill="rgba(255,255,255,0.6)"/>
+      <circle cx="500" cy="317" r="18" fill="rgba(255,255,255,0.08)"/>
+      <circle cx="500" cy="317" r="35" fill="rgba(255,255,255,0.03)"/>
+
+      <!-- Trail rings — varied dash patterns for realism -->
+      <g style="animation: trail-spin 120s linear infinite; transform-origin: 500px 317px">
+        <circle cx="500" cy="317" r="60"  stroke="rgba(220,235,255,0.55)" stroke-width="0.8" stroke-dasharray="6 5"/>
+        <circle cx="500" cy="317" r="90"  stroke="rgba(200,220,255,0.50)" stroke-width="0.9" stroke-dasharray="8 4"/>
+        <circle cx="500" cy="317" r="125" stroke="rgba(200,220,255,0.48)" stroke-width="1.0" stroke-dasharray="10 5"/>
+        <circle cx="500" cy="317" r="162" stroke="rgba(200,220,255,0.45)" stroke-width="1.0" stroke-dasharray="12 6"/>
+        <circle cx="500" cy="317" r="202" stroke="rgba(200,220,255,0.42)" stroke-width="1.1" stroke-dasharray="14 6"/>
+        <circle cx="500" cy="317" r="245" stroke="rgba(200,220,255,0.38)" stroke-width="1.2" stroke-dasharray="16 7"/>
+        <circle cx="500" cy="317" r="292" stroke="rgba(200,220,255,0.32)" stroke-width="1.2" stroke-dasharray="18 8"/>
+        <circle cx="500" cy="317" r="342" stroke="rgba(200,220,255,0.26)" stroke-width="1.3" stroke-dasharray="20 9"/>
+        <circle cx="500" cy="317" r="396" stroke="rgba(200,220,255,0.20)" stroke-width="1.3" stroke-dasharray="22 10"/>
+        <circle cx="500" cy="317" r="455" stroke="rgba(200,220,255,0.14)" stroke-width="1.3" stroke-dasharray="24 11"/>
+        <circle cx="500" cy="317" r="518" stroke="rgba(200,220,255,0.09)" stroke-width="1.2" stroke-dasharray="26 12"/>
+        <circle cx="500" cy="317" r="586" stroke="rgba(200,220,255,0.05)" stroke-width="1.0" stroke-dasharray="28 14"/>
+      </g>
+
+      <!-- Counter-rotating faint layer for depth -->
+      <g style="animation: trail-spin 200s linear infinite reverse; transform-origin: 500px 317px">
+        <circle cx="500" cy="317" r="75"  stroke="rgba(255,245,220,0.20)" stroke-width="0.5" stroke-dasharray="3 12"/>
+        <circle cx="500" cy="317" r="140" stroke="rgba(255,245,220,0.16)" stroke-width="0.5" stroke-dasharray="4 14"/>
+        <circle cx="500" cy="317" r="220" stroke="rgba(255,245,220,0.12)" stroke-width="0.5" stroke-dasharray="5 16"/>
+        <circle cx="500" cy="317" r="318" stroke="rgba(255,245,220,0.08)" stroke-width="0.5" stroke-dasharray="6 18"/>
+        <circle cx="500" cy="317" r="430" stroke="rgba(255,245,220,0.05)" stroke-width="0.5" stroke-dasharray="7 20"/>
+      </g>
+    </g>
+  </svg>
+
+  <!-- Atmosphere -->
+  <div class="hero-atmos"></div>
+
+  <!-- Ground warm glow (recreating the orange lights from the photo) -->
+  <div class="hero-ground-glow"></div>
+
+  <!-- Silhouette of people lying on the ground looking up at stars -->
+  <div class="hero-silhouette">
+    <svg viewBox="0 0 1000 220" preserveAspectRatio="xMidYMax meet"
+         style="position:absolute;bottom:0;left:0;width:100%;height:100%">
+      <!-- Ground fill -->
+      <path d="M0 220 L1000 220 L1000 160 Q800 145 600 155 Q400 165 200 158 Q100 154 0 162 Z"
+            fill="#000"/>
+
+      <!-- Person 1 — lying left, head toward center-left -->
+      <ellipse cx="200" cy="160" rx="90" ry="14" fill="#000"/>
+      <circle  cx="278" cy="148" r="16" fill="#000"/>
+      <ellipse cx="185" cy="166" rx="28" ry="8" fill="#050505"/>
+
+      <!-- Person 2 — lying center -->
+      <ellipse cx="460" cy="162" rx="100" ry="13" fill="#000"/>
+      <circle  cx="548" cy="150" r="15" fill="#000"/>
+
+      <!-- Person 3 — reclining right, with camera stick -->
+      <ellipse cx="720" cy="157" rx="95" ry="15" fill="#000"/>
+      <circle  cx="790" cy="140" r="18" fill="#000"/>
+      <!-- Selfie stick -->
+      <line x1="800" y1="138" x2="840" y2="95" stroke="#111" stroke-width="2"/>
+      <rect x="833" y="90" width="14" height="9" rx="1" fill="#111"/>
+
+      <!-- Rock/ground details -->
+      <ellipse cx="350" cy="175" rx="40" ry="6" fill="#030303"/>
+      <ellipse cx="620" cy="172" rx="30" ry="5" fill="#030303"/>
+
+      <!-- Water shimmer in background -->
+      <path d="M0 158 Q250 148 500 152 Q750 156 1000 150 L1000 162 Q750 166 500 162 Q250 158 0 162 Z"
+            fill="rgba(60,90,120,0.25)"/>
+    </svg>
+  </div>
+
+  <!-- Hero content -->
+  <div class="hero-badge">旅と写真の旅図鑑アプリ &nbsp;·&nbsp; MY TRAVEL ATLAS</div>
+  <h1 class="hero-title">S-pot</h1>
+  <p class="hero-subtitle">世界を旅する記憶の図鑑</p>
+  <p class="hero-subtitle-en">A visual atlas of memories across the world.</p>
+  <p class="hero-tagline">旅の記録が、あなたの地図になる。</p>
+  <p class="hero-tagline-en">Your journey becomes your own atlas.</p>
+  <a href="https://s-pot.vercel.app" class="hero-cta" target="_blank">さあ、旅に出よう。</a>
+
+  <div class="hero-glow"></div>
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <div class="hero-scroll-line"></div>
+  </div>
+</div>
+
+<!-- CAMPAIGN BANNER -->
+<div class="campaign">
+  <div style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+    <div class="campaign-label">🔥 Early Bird Campaign</div>
+    <div style="display:inline-block;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:20px;padding:4px 14px;font-family:'Inter',sans-serif;font-size:10px;font-weight:600;letter-spacing:0.15em;color:var(--gold);text-transform:uppercase">S-lab 会員限定</div>
+  </div>
+  <h2 class="campaign-title">期間限定キャンペーン価格</h2>
+  <p class="campaign-title-en">Limited time offer — exclusively for S-lab members</p>
+
+  <div class="price-wrap">
+    <div>
+      <div class="price-original">通常価格 ¥980 / 月</div>
+    </div>
+    <div class="price-arrow">→</div>
+    <div>
+      <div class="price-campaign"><sup>¥</sup>480</div>
+      <div class="price-unit">/ month &nbsp;·&nbsp; 月額</div>
+    </div>
+  </div>
+  <p class="price-note">キャンペーン期間中に登録した方は、ずっとこの価格でご利用いただけます。</p>
+  <p class="price-note" style="font-size:10px;margin-top:4px;color:var(--text-dim)">Those who sign up during the campaign period will be locked in at this price forever.</p>
+  <p class="price-note" style="margin-top:16px;color:rgba(201,168,76,0.7);font-size:11px;letter-spacing:0.08em">※ キャンペーン終了後は、本サービスはS-lab会員の方のみお申し込みいただけます</p>
+
+  <div style="margin-top:40px">
+    <div class="countdown-label">キャンペーン終了まで &nbsp;·&nbsp; Campaign ends in</div>
+    <div class="countdown">
+      <div class="cd-unit">
+        <div class="cd-num" id="cd-days">00</div>
+        <div class="cd-label">Days</div>
+      </div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit">
+        <div class="cd-num" id="cd-hours">00</div>
+        <div class="cd-label">Hours</div>
+      </div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit">
+        <div class="cd-num" id="cd-mins">00</div>
+        <div class="cd-label">Mins</div>
+      </div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit">
+        <div class="cd-num" id="cd-secs">00</div>
+        <div class="cd-label">Secs</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONCEPT -->
+<section>
+  <div class="concept-wrap fade-up">
+    <div class="concept-text">
+      <div class="section-badge">Concept</div>
+      <h2 class="section-title">旅した場所が、<br>光りだす。</h2>
+      <p class="section-title-en">The places you've been start to glow.</p>
+      <div class="divider"></div>
+      <p>S-potは、あなたの旅の記録を美しい地図に変えるアプリです。訪れた場所は地図上で光り、まだ見ぬ景色への想像を膨らませてくれます。</p>
+      <p class="en">S-pot transforms your travel memories into a beautiful, living atlas. Every place you visit glows on your map — a constellation of your own story.</p>
+      <p>写真を撮るだけで場所を自動記録。ロケハン情報や撮影のコツまで、フォトグラファーの視点で旅を深める機能が揃っています。</p>
+      <p class="en">Just take a photo and let S-pot handle the rest — auto-logging your location, plus scouting intel for photographers who want to capture the perfect shot.</p>
+    </div>
+    <div class="concept-visual">
+      <img src="sunset.png" alt="夕陽を見つめる旅人たち">
+      <div class="concept-visual-overlay"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section style="padding-top: 0;">
+  <div class="fade-up">
+    <div class="section-badge">Features</div>
+    <h2 class="section-title">旅をもっと豊かに。</h2>
+    <p class="section-title-en">Everything you need to travel deeper.</p>
+  </div>
+  <div class="features-grid fade-up">
+
+    <!-- Card 01 -->
+    <div class="feature-card">
+      <div class="feature-card-bg" style="background-image:url('IMG_7933.png');background-position:center center"></div>
+      <div class="feature-card-overlay"></div>
+      <span class="feature-num">01</span>
+      <div class="feature-content">
+        <div class="feature-title-en">Your Personal Travel Atlas</div>
+        <div class="feature-title">自分だけの図鑑を作る</div>
+        <div class="feature-divider"></div>
+        <p class="feature-desc">写真と場所を記録して、あなただけの旅図鑑に。訪れた思い出が、美しいアーカイブになります。</p>
+      </div>
+    </div>
+
+    <!-- Card 02 -->
+    <div class="feature-card">
+      <div class="feature-card-bg" style="background-image:url('IMG_7929.png');background-position:center 40%"></div>
+      <div class="feature-card-overlay"></div>
+      <span class="feature-num">02</span>
+      <div class="feature-content">
+        <div class="feature-title-en">A Map That Glows</div>
+        <div class="feature-title">行った場所が<br>光る地図</div>
+        <div class="feature-divider"></div>
+        <p class="feature-desc">訪れた場所が地図上で光り、まだ見ぬ場所が一目でわかります。あなたの旅の軌跡が、世界地図に刻まれます。</p>
+      </div>
+    </div>
+
+    <!-- Card 03 -->
+    <div class="feature-card">
+      <div class="feature-card-bg" style="background-image:url('IMG_7665.jpg');background-position:center 50%"></div>
+      <div class="feature-card-overlay"></div>
+      <span class="feature-num">03</span>
+      <div class="feature-content">
+        <div class="feature-title-en">Photographer's Scouting Intel</div>
+        <div class="feature-title">ロケハン情報も充実</div>
+        <div class="feature-divider"></div>
+        <p class="feature-desc">ベストな撮影時間帯、光の向き、三脚の可否、アクセスまで。フォトグラファー目線で旅先をディープに知ることができます。</p>
+      </div>
+    </div>
+
+    <!-- Card 04 -->
+    <div class="feature-card">
+      <div class="feature-card-bg" style="background-image:url('4B98165A-C5DF-47AC-A4E5-563BD620DD07.JPEG');background-position:center center"></div>
+      <div class="feature-card-overlay"></div>
+      <span class="feature-num">04</span>
+      <div class="feature-content">
+        <div class="feature-title-en">Share & Discover Together</div>
+        <div class="feature-title">みんなでシェアする</div>
+        <div class="feature-divider"></div>
+        <p class="feature-desc">お気に入りの景色をシェアして、旅好きのコミュニティとつながる。誰かのスポットが、あなたの次の旅になります。</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- SCREENSHOTS -->
+<div class="screenshots-section">
+  <div class="screenshots-inner">
+    <div class="fade-up">
+      <div class="section-badge">App Preview</div>
+      <h2 class="section-title">世界観をのぞいてみる。</h2>
+      <p class="section-title-en">A glimpse into the world of S-pot.</p>
+    </div>
+    <div class="screenshots-scroll">
+
+      <!-- Screen 1: Globe -->
+      <div class="screen-card">
+        <div class="screen-inner">
+          <img src="IMG_7802.PNG" alt="S-pot Globe View">
+        </div>
+        <div class="screen-label">Globe View</div>
+      </div>
+
+      <!-- Screen 2: Japan Map -->
+      <div class="screen-card">
+        <div class="screen-inner">
+          <img src="IMG_7803.PNG" alt="S-pot Japan Map">
+        </div>
+        <div class="screen-label">Japan Map</div>
+      </div>
+
+      <!-- Screen 3: Spot Detail -->
+      <div class="screen-card">
+        <div class="screen-inner">
+          <img src="IMG_7804.PNG" alt="S-pot Spot Detail">
+        </div>
+        <div class="screen-label">Spot Detail</div>
+      </div>
+
+      <!-- Screen 4: Prefecture -->
+      <div class="screen-card">
+        <div class="screen-inner">
+          <img src="IMG_7805.PNG" alt="S-pot Prefecture View">
+        </div>
+        <div class="screen-label">Prefecture View</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- STORY -->
+<section class="story-section">
+  <div class="fade-up">
+    <div class="section-badge">Voice</div>
+    <h2 class="section-title">旅人たちの、声。</h2>
+    <p class="section-title-en">From the people who've been there.</p>
+  </div>
+  <div class="voice-grid fade-up">
+
+    <!-- ① 地図・記録 -->
+    <div class="voice-card accent-gold">
+      <ul class="voice-list">
+        <li>行った場所が一目でわかるからいろんな場所に行きたくなる！</li>
+        <li>旅先での撮影がもっと楽しみになりました！</li>
+        <li>動画のURLが載せられるのも嬉しい！！</li>
+      </ul>
+    </div>
+
+    <!-- ② ロケハン -->
+    <div class="voice-card accent-blue">
+      <ul class="voice-list">
+        <li>ロケハン情報が本当に助かる。</li>
+        <li>どこで撮ったんだろう？と思っても詳細まではわからないことが多いから嬉しい。</li>
+        <li>混みすぎなくて済むから会員限定での公開っていうのもありがたい。</li>
+      </ul>
+    </div>
+
+    <!-- ③ 図鑑 -->
+    <div class="voice-card accent-rose">
+      <ul class="voice-list">
+        <li>ポ◯モン図鑑みたいで楽しいwww</li>
+        <li>全国制覇したくなりました！！</li>
+        <li>自分だけの図鑑が作れるのは単純に楽しい！！</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-section">
+  <div class="fade-up" style="position:relative;z-index:2">
+    <h2 class="cta-title">旅の記録を、<br>はじめよう。</h2>
+    <p class="cta-title-en">Start your atlas today.</p>
+    <div class="cta-btn-wrap">
+      <a href="https://s-pot.vercel.app" class="btn-primary" target="_blank">
+        📱 &nbsp;今すぐダウンロード
+      </a>
+      <a href="https://s-pot.vercel.app" class="btn-secondary" target="_blank">
+        ✦ &nbsp;Download S-pot
+      </a>
+    </div>
+    <p class="cta-note">キャンペーン価格 ¥480/月 &nbsp;·&nbsp; 期間限定 &nbsp;·&nbsp; <a href="https://s-pot.vercel.app" style="color:var(--gold);text-decoration:none">s-pot.vercel.app</a></p>
+    <p class="cta-note mt-8" style="margin-top:8px">さあ、旅に出よう。</p>
+  </div>
+</div>
+
+<!-- S-POT CLOSING NOTICE -->
+<div class="closing-notice fade-up">
+  <div class="closing-notice-inner">
+    <p class="closing-notice-text">🔒 キャンペーン期間終了後、S-POTは<strong>S-labメンバー限定の非公開コンテンツ</strong>となります。<br>キャンペーン期間内にご購入の方は、ずっと同じ価格でご利用いただけます。</p>
+  </div>
+</div>
+
+<!-- S-LAB -->
+<section class="slab-section">
+  <div class="slab-inner fade-up">
+    <div class="section-badge">About</div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 class="section-title" style="font-size:clamp(28px,5vw,48px);margin:0">S-lab. とは？</h2>
+      <span style="display:inline-block;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:20px;padding:5px 14px;font-family:'Inter',sans-serif;font-size:10px;font-weight:600;letter-spacing:0.18em;color:var(--gold);text-transform:uppercase;white-space:nowrap">Coming Soon</span>
+    </div>
+    <p class="section-title-en">A universe of creativity, learning, and community.</p>
+
+    <div class="slab-card">
+      <div class="slab-card-bg"></div>
+      <div class="slab-card-overlay"></div>
+      <div class="slab-card-content">
+        <p class="slab-coming">Coming Soon</p>
+        <h3 class="slab-title">松本瞬がつくる、<br>世界観と学びの環境。</h3>
+        <p class="slab-body">写真・動画を好きな時間に、好きな場所で学べるオンライン学習プラットフォーム。写真・動画制作はもちろん、AIの活用法や考え方のシェア、ワークショップ、そして瞬が独自に開発したアプリを会員限定で体験できる——そんな場所です。</p>
+        <div class="slab-features">
+          <div class="slab-feat">📸 写真 &amp; 動画学習</div>
+          <div class="slab-feat">🤖 AI活用・思考法</div>
+          <div class="slab-feat">🛠 限定アプリ</div>
+          <div class="slab-feat">🎓 ワークショップ</div>
+        </div>
+        <div class="slab-note">S-lab.会員は <strong>S-potが使い放題</strong>で自動的に移行されます</div>
+      </div>
+    </div>
+
+    <!-- Screenshots preview -->
+    <div class="slab-screens fade-up">
+      <div class="slab-screen-item">
+        <img src="slab-hero.jpg" alt="S-lab ホーム">
+        <div class="slab-screen-label">ホーム</div>
+      </div>
+      <div class="slab-screen-item">
+        <img src="slab-tools.jpg" alt="S-lab オリジナルLUT">
+        <div class="slab-screen-label">オリジナルLUT</div>
+      </div>
+      <div class="slab-screen-item">
+        <img src="slab-works.jpg" alt="S-lab Shun's Works">
+        <div class="slab-screen-label">Shun's Works</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- TERMS -->
+<section class="terms-section">
+  <div class="terms-inner fade-up">
+    <div class="section-badge">Terms &amp; Notes</div>
+    <h2 class="section-title" style="font-size:clamp(24px,4vw,36px);margin-bottom:8px">注意事項・規約</h2>
+    <p class="section-title-en">Please read before signing up.</p>
+
+    <div class="terms-grid">
+
+      <!-- 募集条件 -->
+      <div class="terms-block">
+        <div class="terms-block-title">募集条件</div>
+        <ul class="terms-list">
+          <li>本サービスはS-lab会員の方のみご利用いただけます</li>
+          <li>キャンペーン期間終了後は新規募集を停止し、クローズドサービスに移行します</li>
+          <li>キャンペーン期間中にご登録いただいた方は、月額¥480の価格を継続してご利用いただけます</li>
+          <li>S-lab会員資格を失効した場合、S-potのご利用もできなくなります</li>
+        </ul>
+      </div>
+
+      <!-- 利用規約 -->
+      <div class="terms-block">
+        <div class="terms-block-title">利用規約</div>
+        <ul class="terms-list">
+          <li>1スポットにつき写真は最大5枚までアップロードできます</li>
+          <li>他者の著作権・肖像権を侵害するコンテンツの投稿は禁止します</li>
+          <li>虚偽の位置情報・撮影情報の投稿は禁止します</li>
+          <li>他者を中傷・誹謗する内容の投稿は禁止します</li>
+          <li>投稿内容の正確性について、運営は一切の責任を負いません</li>
+          <li>規約違反が認められた場合、予告なくアカウントを停止することがあります</li>
+        </ul>
+      </div>
+
+      <!-- プライバシーポリシー -->
+      <div class="terms-block">
+        <div class="terms-block-title">プライバシーポリシー</div>
+        <ul class="terms-list">
+          <li>位置情報・写真データは、サービス提供目的のみに使用します</li>
+          <li>取得した個人情報は第三者に提供しません（法令に基づく場合を除く）</li>
+          <li>ロケハン情報として公開する位置情報は、投稿者が任意に設定できます</li>
+          <li>データはセキュリティで保護されたクラウドサーバーで管理します</li>
+        </ul>
+      </div>
+
+      <!-- 解約ポリシー -->
+      <div class="terms-block">
+        <div class="terms-block-title">解約・退会について</div>
+        <ul class="terms-list">
+          <li>解約はいつでも可能です。月途中の解約による日割り返金は行いません</li>
+          <li>解約後は新規投稿および他ユーザーのロケハン情報の閲覧ができなくなります</li>
+          <li>解約後30日間は、ご自身の投稿したスポットを閲覧できます</li>
+          <li>データの完全削除をご希望の場合は、サポートまでお申し付けください</li>
+          <li>再入会はS-lab会員である場合に限り可能です</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- TERMS BOTTOM CTA -->
+<div style="background:#060810;padding:48px 24px;text-align:center;border-top:1px solid rgba(255,255,255,0.04)">
+  <p style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:20px;letter-spacing:0.08em">規約に同意の上、ダウンロードへお進みください</p>
+  <a href="https://s-pot.vercel.app" target="_blank" class="btn-primary" style="display:inline-block;text-decoration:none">
+    📱 &nbsp;今すぐダウンロード
+  </a>
+  <p style="font-size:10px;color:rgba(255,255,255,0.25);margin-top:16px;letter-spacing:0.06em">s-pot.vercel.app &nbsp;·&nbsp; キャンペーン価格 ¥480/月</p>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">S-pot</div>
+  <div class="footer-tagline">旅と写真の旅図鑑アプリ &nbsp;·&nbsp; MY TRAVEL ATLAS</div>
+  <div class="footer-copy">© 2026 S-pot. All rights reserved.</div>
+</footer>
+
+<script>
+  // ── Stars ──
+  const starsEl = document.getElementById('stars');
+  for (let i = 0; i < 200; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2.5 + 0.5;
+    const min = (Math.random() * 0.3 + 0.1).toFixed(2);
+    const max = (parseFloat(min) + Math.random() * 0.5 + 0.2).toFixed(2);
+    const dur = (Math.random() * 4 + 2).toFixed(1) + 's';
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      top:${Math.random()*100}%; left:${Math.random()*100}%;
+      --min:${min}; --max:${max}; --d:${dur};
+      animation-delay:${(Math.random()*4).toFixed(1)}s;
+    `;
+    starsEl.appendChild(s);
+  }
+
+  // ── Nav scroll ──
+  window.addEventListener('scroll', () => {
+    document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 60);
+  });
+
+  // ── Countdown — target: 2025-07-10 ──
+  const target = new Date('2025-07-10T23:59:59+09:00');
+
+  function updateCountdown() {
+    const now = Date.now();
+    const diff = Math.max(0, target - now);
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cd-days').textContent  = String(d).padStart(2,'0');
+    document.getElementById('cd-hours').textContent = String(h).padStart(2,'0');
+    document.getElementById('cd-mins').textContent  = String(m).padStart(2,'0');
+    document.getElementById('cd-secs').textContent  = String(s).padStart(2,'0');
+  }
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+
+  // ── Scroll animations ──
+  const fadeEls = document.querySelectorAll('.fade-up');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  fadeEls.forEach(el => obs.observe(el));
+</script>
+
+<!-- DOWNLOAD MODAL -->
+<div id="dl-modal" role="dialog" aria-modal="true" aria-label="ダウンロード方法">
+  <div class="dl-modal-box">
+    <button class="dl-modal-close" id="dl-modal-close" aria-label="閉じる">✕</button>
+
+    <p class="dl-modal-title">ダウンロード方法</p>
+    <p class="dl-modal-subtitle">Add to Home Screen</p>
+
+    <!-- iOS -->
+    <div class="dl-modal-os">
+      <div class="dl-modal-os-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 8v4l3 3"/></svg>
+        iPhone / iPad（Safari）
+      </div>
+      <div class="dl-modal-steps">
+        <div class="dl-modal-step">
+          <div class="dl-step-num">1</div>
+          <div class="dl-step-text">「次へ」ボタンから <em>Safari</em> でページを開く</div>
+        </div>
+        <div class="dl-modal-step">
+          <div class="dl-step-num">2</div>
+          <div class="dl-step-text">画面下部の <em>共有ボタン（□↑）</em> をタップ</div>
+        </div>
+        <div class="dl-modal-step">
+          <div class="dl-step-num">3</div>
+          <div class="dl-step-text">メニューから <em>「ホーム画面に追加」</em> を選択</div>
+        </div>
+        <div class="dl-modal-step">
+          <div class="dl-step-num">4</div>
+          <div class="dl-step-text">右上の <em>「追加」</em> をタップして完了</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Android -->
+    <div class="dl-modal-os">
+      <div class="dl-modal-os-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+        Android（Chrome）
+      </div>
+      <div class="dl-modal-steps">
+        <div class="dl-modal-step">
+          <div class="dl-step-num">1</div>
+          <div class="dl-step-text">「次へ」ボタンから <em>Chrome</em> でページを開く</div>
+        </div>
+        <div class="dl-modal-step">
+          <div class="dl-step-num">2</div>
+          <div class="dl-step-text">右上の <em>⋮ メニュー</em> をタップ</div>
+        </div>
+        <div class="dl-modal-step">
+          <div class="dl-step-num">3</div>
+          <div class="dl-step-text"><em>「ホーム画面に追加」</em> を選択して完了</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="dl-modal-divider">
+
+    <a id="dl-modal-proceed" href="https://s-pot.vercel.app" target="_blank" class="dl-modal-proceed">
+      次へ &nbsp;→&nbsp; s-pot.vercel.app を開く
+    </a>
+  </div>
+</div>
+
+<script>
+(function() {
+  var modal = document.getElementById('dl-modal');
+  var closeBtn = document.getElementById('dl-modal-close');
+
+  function openModal(e) {
+    var target = e.currentTarget;
+    // skip plain text links in the cta-note (small inline link)
+    if (target.classList.contains('cta-note-link')) return;
+    e.preventDefault();
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // Intercept all s-pot.vercel.app links except the tiny inline text reference
+  document.querySelectorAll('a[href="https://s-pot.vercel.app"]').forEach(function(el) {
+    // skip the small inline text-only link inside .cta-note
+    var isInlineText = el.closest('.cta-note') && !el.classList.contains('btn-primary') && !el.classList.contains('btn-secondary');
+    if (!isInlineText) {
+      el.addEventListener('click', openModal);
+    }
+  });
+
+  closeBtn.addEventListener('click', closeModal);
+
+  // Close on backdrop click
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeModal();
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+  });
+})();
+</script>
+</body>
+</html>

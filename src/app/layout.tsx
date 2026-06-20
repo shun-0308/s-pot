@@ -35,6 +35,14 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ja">
+      <head>
+        {/* Leaflet CSS — タイルの position/overflow に必須 */}
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          crossOrigin=""
+        />
+      </head>
       <body>
         {children}
         <ServiceWorkerRegister />

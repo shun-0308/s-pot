@@ -1,4 +1,7 @@
 import { supabase, type RecordRow, type RecordPhotoRow, type Visibility, type ScoutInfo } from "./supabase";
+import { geocodePlace } from "./geocode";
+import { JAPAN_CODE } from "./world";
+import { prefByCode } from "./prefectures";
 
 export type PhotoWithUrl = RecordPhotoRow & { url: string | null };
 export type RecordWithPhotos = RecordRow & { photos: PhotoWithUrl[]; display_name?: string | null };
@@ -146,6 +149,32 @@ export async function deleteRecord(rec: RecordWithPhotos): Promise<void> {
   if (paths.length) await supabase.storage.from("photos").remove(paths);
   const { error } = await supabase.from("records").delete().eq("id", rec.id);
   if (error) throw error;
+}
+
+// 住所ありで座標なしの自分の記録をバックグラウンドでジオコーディング補完
+// Nominatimは1req/sなので間を空けながら処理する
+export async function backfillMissingCoords(records: RecordWithPhotos[]): Promise<void> {
+  const needs = records.filter((r) => r.lat == null && r.address);
+  for (const r of needs) {
+    try {
+      const isJP = r.country_code === JAPAN_CODE;
+      // まず住所でジオコーディング
+      let g = await geocodePlace(r.address!, { jpOnly: isJP });
+      // 失敗時はスポット名+都道府県名でリトライ
+      if (!g && r.name) {
+        const prefName = isJP ? prefByCode(r.pref_code ?? 0)?.name ?? "" : "";
+        const fallbackQ = [r.name, prefName].filter(Boolean).join(" ");
+        if (fallbackQ !== r.address) g = await geocodePlace(fallbackQ, { jpOnly: isJP });
+      }
+      if (g) {
+        await supabase.from("records").update({ lat: g.lat, lng: g.lon }).eq("id", r.id);
+        r.lat = g.lat;
+        r.lng = g.lon;
+      }
+    } catch {}
+    // Nominatim利用規約: 1リクエスト/秒
+    await new Promise((res) => setTimeout(res, 1100));
+  }
 }
 
 // "2026-06-15" → "2026.06.15"

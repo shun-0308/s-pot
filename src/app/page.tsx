@@ -23,6 +23,7 @@ import { geocodePlace } from "@/lib/geocode";
 import { countryFromGPS, countryByCode, JAPAN_CODE, type Country } from "@/lib/world";
 import {
   fetchRecords, createRecord, updateRecord, deleteRecord, addPhoto,
+  backfillMissingCoords,
   type RecordWithPhotos,
 } from "@/lib/records";
 import { captionOf, prefByCode, PREF_EN, type Prefecture } from "@/lib/prefectures";
@@ -65,7 +66,15 @@ export default function Home() {
   // 記録ロード
   const reload = useCallback(async () => {
     try {
-      setRecords(await fetchRecords());
+      const recs = await fetchRecords();
+      setRecords(recs);
+      // 住所ありで座標なしの記録をバックグラウンドで補完(完了後に再ロード)
+      const needs = recs.filter((r) => r.lat == null && r.address);
+      if (needs.length) {
+        backfillMissingCoords(needs).then(() => {
+          fetchRecords().then(setRecords).catch(() => {});
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "読み込みに失敗しました");
     }
@@ -170,13 +179,21 @@ export default function Home() {
       const prevCount = records.filter((r) =>
         isJP ? r.pref_code === pref!.id && r.country_code === JAPAN_CODE : r.country_code === code
       ).length;
-      // 写真にGPSが無ければ、住所(なければ場所名)から座標を補完
+      // 写真にGPSが無ければ、住所→スポット名の順で座標を補完
       let coords: { lat: number; lng: number } | null = gps;
-      const geoQuery = (v.address.trim() || v.name).trim();
-      if (!coords && geoQuery) {
-        const q = isJP ? `${geoQuery} ${pref!.name}` : `${geoQuery} ${country!.name}`;
-        const g = await geocodePlace(q, { jpOnly: isJP });
-        if (g) coords = { lat: g.lat, lng: g.lon };
+      const placeSuffix = isJP ? pref!.name : country!.name;
+      if (!coords) {
+        // ① 住所で試みる
+        const addrQ = v.address.trim();
+        if (addrQ) {
+          const g = await geocodePlace(`${addrQ} ${placeSuffix}`, { jpOnly: isJP });
+          if (g) coords = { lat: g.lat, lng: g.lon };
+        }
+        // ② 失敗またはアドレス無しならスポット名でフォールバック
+        if (!coords && v.name.trim()) {
+          const g = await geocodePlace(`${v.name.trim()} ${placeSuffix}`, { jpOnly: isJP });
+          if (g) coords = { lat: g.lat, lng: g.lon };
+        }
       }
       await createRecord(
         {
@@ -195,8 +212,8 @@ export default function Home() {
         v.photos
       );
       await reload();
-      if (!coords && geoQuery)
-        setError(`記録は保存しましたが、「${geoQuery}」から地図上の位置を特定できませんでした。あとで編集の住所欄を具体的にすると地図に表示されます。`);
+      if (!coords)
+        setError(`記録は保存しましたが、「${v.name}」の位置を特定できませんでした。あとで編集の住所欄を具体的にすると地図に表示されます。`);
       setStamp({ pref: placeName, no: prevCount + 1, first: prevCount === 0 });
       resetEntryState();
     } catch (e) {
@@ -278,7 +295,7 @@ export default function Home() {
   if (access.status === "invite")
     return <InviteScreen onUnlocked={access.recheck} onLogout={() => supabase.auth.signOut()} />;
   if (access.status === "blocked")
-    return <MembersOnlyScreen onLogout={() => supabase.auth.signOut()} />;
+    return <MembersOnlyScreen onLogout={() => supabase.auth.signOut()} onUnlocked={access.recheck} />;
 
   // ── 画面分岐 ──
 

@@ -45,6 +45,11 @@ export default function SpotMap({ lat, lng, name, dark = false }: Props) {
       });
       L.marker([lat, lng], { icon, title: name }).addTo(map)
         .bindTooltip(name, { direction: "top", offset: L.point(0, -12), permanent: false });
+
+      // スライドアニメーション等でコンテナサイズが変わる間 invalidateSize を呼び続ける
+      const ro = new ResizeObserver(() => { if (!cancelled) map.invalidateSize(); });
+      if (divRef.current) ro.observe(divRef.current);
+      setTimeout(() => ro.disconnect(), 1000);
     })();
     return () => {
       cancelled = true;
@@ -55,8 +60,10 @@ export default function SpotMap({ lat, lng, name, dark = false }: Props) {
   }, []);
 
   return (
-    <div ref={divRef}
-      style={{ height: 200, width: "100%", background: dark ? "#1a1a20" : "#EDEDEA", zIndex: 0,
-        border: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "var(--hairline)"}` }} />
+    <div style={{ position: "relative", width: "100%", height: 200, overflow: "hidden",
+      border: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "var(--hairline)"}` }}>
+      <div ref={divRef}
+        style={{ position: "absolute", inset: 0, background: dark ? "#1a1a20" : "#EDEDEA" }} />
+    </div>
   );
 }

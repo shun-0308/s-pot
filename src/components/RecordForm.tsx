@@ -5,11 +5,14 @@ import type { RecordWithPhotos } from "@/lib/records";
 import type { Visibility, ScoutInfo } from "@/lib/supabase";
 import { PREFECTURES } from "@/lib/prefectures";
 
+const DRAFT_KEY = "s-pot-draft-new";
+
 export type FormValues = {
   name: string;
   address: string; // 位置判定に使う住所/場所名(任意)
   taken_at: string; // "YYYY-MM-DD" or ""
   body: string;
+  youtube_url: string; // 関連YouTube動画(任意)
   photos: File[]; // 複数枚まとめてアップロードできる
   visibility: Visibility;
   scout: ScoutInfo;
@@ -56,20 +59,55 @@ const inputStyle = {
 };
 
 export default function RecordForm({ title, initial, existing, prefSelectable, busy, onSubmit, onCancel }: Props) {
-  const [v, setV] = useState<FormValues>({
-    name: initial?.name ?? "",
-    address: initial?.address ?? "",
-    taken_at: initial?.taken_at ?? "",
-    body: initial?.body ?? "",
-    photos: initial?.photos ?? [],
-    visibility: initial?.visibility ?? "private",
-    scout: initial?.scout ?? {},
-    pref_code: initial?.pref_code ?? null,
+  const isEdit = !!existing;
+  const [v, setV] = useState<FormValues>(() => {
+    // 新規作成時のみ下書きを復元
+    if (!isEdit) {
+      try {
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return { ...parsed, photos: [] }; // Fileオブジェクトは復元不可
+        }
+      } catch {}
+    }
+    return {
+      name: initial?.name ?? "",
+      address: initial?.address ?? "",
+      taken_at: initial?.taken_at ?? "",
+      body: initial?.body ?? "",
+      youtube_url: initial?.youtube_url ?? "",
+      photos: initial?.photos ?? [],
+      visibility: initial?.visibility ?? "private",
+      scout: initial?.scout ?? {},
+      pref_code: initial?.pref_code ?? null,
+    };
   });
   const [scoutOpen, setScoutOpen] = useState(
     !!initial?.scout && Object.values(initial.scout).some(Boolean)
   );
+  const [draftRestored, setDraftRestored] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 下書き復元通知
+  useEffect(() => {
+    if (!isEdit) {
+      try {
+        if (localStorage.getItem(DRAFT_KEY)) setDraftRestored(true);
+      } catch {}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // フォーム変更のたびに下書き自動保存（新規作成のみ）
+  useEffect(() => {
+    if (isEdit) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { photos, ...saveable } = v;
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(saveable));
+    } catch {}
+  }, [v, isEdit]);
 
   const setScout = (k: keyof ScoutInfo, val: string | undefined) =>
     setV((p) => ({ ...p, scout: { ...p.scout, [k]: val } }));
@@ -109,10 +147,33 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
 
   const existingPhotos = existing?.photos.map((p) => p.url).filter(Boolean) as string[] | undefined;
 
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    setDraftRestored(false);
+  };
+
+  const handleSubmit = () => {
+    if (!v.name.trim()) return;
+    clearDraft();
+    onSubmit({ ...v, scout: cleanScout(v.scout) ?? {} });
+  };
+
   return (
     <div className="card" style={{ borderTop: "1px solid var(--ink)", paddingTop: 18, marginTop: 6 }}>
       <div className="caption" style={{ marginBottom: 4 }}>NEW ENTRY</div>
       <div className="tz-serif" style={{ fontWeight: 700, fontSize: 17, marginBottom: 14 }}>{title}</div>
+
+      {/* 下書き復元通知 */}
+      {draftRestored && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 14,
+          background: "var(--paper-raise)", border: "1px solid var(--hairline)", fontSize: 12, color: "var(--ink-soft)" }}>
+          <span>📝 下書きを復元しました</span>
+          <button onClick={() => { clearDraft(); setV({ name: "", address: "", taken_at: "", body: "", youtube_url: "", photos: [], visibility: "private", scout: {}, pref_code: null }); }}
+            style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--ink-faint)", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textUnderlineOffset: 3 }}>
+            下書きを削除
+          </button>
+        </div>
+      )}
 
       {/* 既存写真(編集時)。差し替えではなく追加なので残して表示 */}
       {existingPhotos && existingPhotos.length > 0 && (
@@ -157,6 +218,9 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
       <textarea style={{ ...inputStyle, resize: "vertical", lineHeight: 1.9 }} rows={5}
         placeholder="記録文 — その日の光、音、気づいたこと…" value={v.body}
         onChange={(e) => setV((p) => ({ ...p, body: e.target.value }))} />
+      <input style={inputStyle} type="url" inputMode="url"
+        placeholder="動画・リンクのURL(任意・YouTubeは埋め込み再生／Instagram等はリンク表示)" value={v.youtube_url}
+        onChange={(e) => setV((p) => ({ ...p, youtube_url: e.target.value }))} />
 
       {/* 公開範囲(デフォルトは自分だけ) */}
       <div style={{ display: "flex", gap: 0, marginBottom: 10, border: "1px solid var(--hairline)" }}>
@@ -174,8 +238,21 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
         ))}
       </div>
       {v.visibility !== "private" && (
-        <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 12, lineHeight: 1.7 }}>
-          ※ 公開時もGPS座標は共有されません(県までの表示)
+        <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 12, lineHeight: 1.7,
+          padding: "10px 12px", border: "1px solid var(--hairline)", background: "var(--paper-raise)" }}>
+          <div style={{ marginBottom: 6 }}>※ 公開時もGPS座標は共有されません（県までの表示）</div>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--ink-soft)" }}>投稿ガイドライン</div>
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
+            {[
+              "旅・撮影に関連する場所の記録を投稿してください",
+              "他の会員のプライバシーに配慮した内容にしてください",
+              "広告・宣伝目的の投稿はご遠慮ください",
+            ].map((g) => (
+              <li key={g} style={{ display: "flex", gap: 6 }}>
+                <span style={{ color: "var(--shu)", flexShrink: 0 }}>·</span>{g}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -236,7 +313,7 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
           style={{ padding: "10px 8px", border: "none", background: "transparent", color: "var(--ink-faint)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>
           やめる
         </button>
-        <button onClick={() => v.name.trim() && onSubmit({ ...v, scout: cleanScout(v.scout) ?? {} })} disabled={busy || !v.name.trim()}
+        <button onClick={handleSubmit} disabled={busy || !v.name.trim()}
           style={{ padding: "11px 26px", border: "none", background: "var(--shu)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.14em", opacity: busy || !v.name.trim() ? 0.5 : 1 }}>
           {busy ? "保存中…" : "記録する"}
         </button>

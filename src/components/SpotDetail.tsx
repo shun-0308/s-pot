@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RecordForm, { VISIBILITY_LABEL, type FormValues } from "./RecordForm";
-import SpotMap from "./SpotMap";
+import FavoriteButton from "./FavoriteButton";
 import { type RecordWithPhotos } from "@/lib/records";
+import { fetchFavoriteIds } from "@/lib/favorites";
 import { youtubeEmbed } from "@/lib/youtube";
 
 type Props = {
@@ -21,7 +22,12 @@ type Props = {
 export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner = true, onBack, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [viewer, setViewer] = useState<number | null>(null); // 拡大表示中の写真index
+  const [viewer, setViewer] = useState<number | null>(null);
+  const [isFav, setIsFav] = useState(false);
+
+  useEffect(() => {
+    fetchFavoriteIds().then((ids) => setIsFav(ids.has(rec.id)));
+  }, [rec.id]);
 
   const photos = rec.photos.filter((p) => p.url);
   // 写真ごとに安定した「散らし」(idベースなので再描画でも揺れない)
@@ -118,9 +124,12 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
             <div className="caption" style={{ color: "var(--dark-faint)" }}>
               {captionText}
             </div>
-            <h2 className="tz-serif" style={{ fontSize: 24, fontWeight: 700, margin: "6px 0 0", lineHeight: 1.5, letterSpacing: "0.04em", color: "var(--dark-strong)" }}>
-              {rec.name}
-            </h2>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+              <h2 className="tz-serif" style={{ fontSize: 24, fontWeight: 700, margin: 0, lineHeight: 1.5, letterSpacing: "0.04em", color: "var(--dark-strong)" }}>
+                {rec.name}
+              </h2>
+              <FavoriteButton recordId={rec.id} initialFav={isFav} size={22} />
+            </div>
 
             <p style={{ fontSize: 14.5, lineHeight: 2.3, marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--hairline-dark)", whiteSpace: "pre-wrap", color: "var(--dark-body)", letterSpacing: "0.02em" }}>
               {rec.body || "記録文はまだありません。"}
@@ -174,12 +183,6 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
                     </div>
                   ) : null
                 )}
-              </div>
-            )}
-
-            {rec.lat != null && rec.lng != null && (
-              <div style={{ marginTop: 24 }}>
-                <SpotMap lat={rec.lat} lng={rec.lng} name={rec.name} dark />
               </div>
             )}
 
