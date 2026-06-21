@@ -2008,40 +2008,40 @@
 
 <script>
 (function() {
+  var STRIPE_URL = 'https://buy.stripe.com/00w8wPgrXbwXdBkf280VO01';
   var modal = document.getElementById('dl-modal');
   var closeBtn = document.getElementById('dl-modal-close');
 
-  function openModal(e) {
-    var target = e.currentTarget;
-    // skip plain text links in the cta-note (small inline link)
-    if (target.classList.contains('cta-note-link')) return;
-    e.preventDefault();
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
+  // CTAボタン → Stripeへ直接遷移
+  document.querySelectorAll(
+    'a.hero-cta, a.nav-cta, a.btn-primary, a.btn-secondary'
+  ).forEach(function(el) {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      window.open(STRIPE_URL, '_blank');
+    });
+  });
+
+  // 残りの s-pot.vercel.app リンク（インラインテキスト等）はモーダル
+  document.querySelectorAll('a[href="https://s-pot.vercel.app"]').forEach(function(el) {
+    var isBtn = el.classList.contains('btn-primary') || el.classList.contains('btn-secondary') ||
+                el.classList.contains('hero-cta') || el.classList.contains('nav-cta');
+    if (!isBtn) {
+      el.addEventListener('click', function(e) {
+        e.preventDefault();
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+    }
+  });
 
   function closeModal() {
     modal.classList.remove('open');
     document.body.style.overflow = '';
   }
 
-  // Intercept all s-pot.vercel.app links except the tiny inline text reference
-  document.querySelectorAll('a[href="https://s-pot.vercel.app"]').forEach(function(el) {
-    // skip the small inline text-only link inside .cta-note
-    var isInlineText = el.closest('.cta-note') && !el.classList.contains('btn-primary') && !el.classList.contains('btn-secondary');
-    if (!isInlineText) {
-      el.addEventListener('click', openModal);
-    }
-  });
-
   closeBtn.addEventListener('click', closeModal);
-
-  // Close on backdrop click
-  modal.addEventListener('click', function(e) {
-    if (e.target === modal) closeModal();
-  });
-
-  // Close on Escape
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
   });
