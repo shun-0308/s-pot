@@ -49,3 +49,10 @@ export type RecordPhotoRow = {
   storage_path: string;
   sort: number;
 };
+
+export type FavoriteRow = {
+  id: string;
+  user_id: string;
+  record_id: string;
+  created_at: string;
+};

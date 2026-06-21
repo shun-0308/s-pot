@@ -26,8 +26,10 @@ import {
   backfillMissingCoords,
   type RecordWithPhotos,
 } from "@/lib/records";
+import { fetchFavoriteIds } from "@/lib/favorites";
 import { captionOf, prefByCode, PREF_EN, type Prefecture } from "@/lib/prefectures";
 import Photo from "@/components/Photo";
+import FavoriteButton from "@/components/FavoriteButton";
 
 type View = "globe" | "japan" | "country" | "shared" | "log" | "search";
 
@@ -48,6 +50,7 @@ export default function Home() {
   const [stamp, setStamp] = useState<{ pref: string; no: number; first: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [profileOpen, setProfileOpen] = useState(false);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
   const [pendingPref, setPendingPref] = useState<number | null>(null);
@@ -66,8 +69,9 @@ export default function Home() {
   // 記録ロード
   const reload = useCallback(async () => {
     try {
-      const recs = await fetchRecords();
+      const [recs, favIds] = await Promise.all([fetchRecords(), fetchFavoriteIds()]);
       setRecords(recs);
+      setFavoriteIds(favIds);
       // 住所ありで座標なしの記録をバックグラウンドで補完(完了後に再ロード)
       const needs = recs.filter((r) => r.lat == null && r.address);
       if (needs.length) {
@@ -81,8 +85,9 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (session) reload();
-    else setRecords([]);
+    else { setRecords([]); setFavoriteIds(new Set()); }
   }, [session, reload]);
+
 
   // アクセス制御(公開モード+S-Lab会員判定)
   const access = useAccess(session, authReady);
@@ -320,6 +325,8 @@ export default function Home() {
         onClose={() => setMenuOpen(false)}
         countryCounts={countryCounts}
         prefCounts={prefCounts}
+        favoriteIds={favoriteIds}
+        allRecords={records}
         onGlobe={() => { setMenuOpen(false); resetEntryState(); setSpot(null); setPref(null); setCountry(null); setPendingPref(null); setFlyTo(null); setGlobeFromJapan(false); setView("globe"); }}
         onLog={() => { setMenuOpen(false); setSpot(null); setView("log"); }}
         onSearch={() => { setMenuOpen(false); setSpot(null); setView("search"); }}
@@ -328,6 +335,7 @@ export default function Home() {
         onLogout={() => { setMenuOpen(false); supabase.auth.signOut(); }}
         onCountry={navToCountry}
         onPref={navToPref}
+        onSelectSpot={(r) => { setMenuOpen(false); setSpot(r); }}
       />
     </>
   );
@@ -435,7 +443,7 @@ export default function Home() {
           onKeyDown={(e) => e.key === "Enter" && setSpot(r)}
           style={{ display: "flex", gap: 14, padding: "14px 0", borderBottom: "1px solid var(--hairline)", alignItems: "center" }}>
           <div style={{ flexShrink: 0, width: 72 }}><Photo rec={r} w={72} h={72} /></div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div className="caption" style={{ fontSize: 9 }}>{logCaption(r)}</div>
             <div className="tz-serif" style={{ fontSize: 15.5, fontWeight: 700, marginTop: 2, lineHeight: 1.5 }}>{r.name}</div>
             {r.body && (
@@ -444,6 +452,17 @@ export default function Home() {
               </div>
             )}
           </div>
+          <FavoriteButton
+            recordId={r.id}
+            initialFav={favoriteIds.has(r.id)}
+            onToggle={(next) => {
+              setFavoriteIds((prev) => {
+                const s = new Set(prev);
+                if (next) s.add(r.id); else s.delete(r.id);
+                return s;
+              });
+            }}
+          />
         </div>
       );
     }

@@ -7,9 +7,10 @@ type Props = {
   recordId: string;
   initialFav: boolean;
   size?: number;
+  onToggle?: (isFav: boolean) => void; // 親のstateと同期するコールバック(任意)
 };
 
-export default function FavoriteButton({ recordId, initialFav, size = 20 }: Props) {
+export default function FavoriteButton({ recordId, initialFav, size = 20, onToggle }: Props) {
   const [fav, setFav] = useState(initialFav);
   const [busy, setBusy] = useState(false);
 
@@ -20,6 +21,7 @@ export default function FavoriteButton({ recordId, initialFav, size = 20 }: Prop
     try {
       const next = await toggleFavorite(recordId, fav);
       setFav(next);
+      onToggle?.(next);
     } finally {
       setBusy(false);
     }

@@ -23,11 +23,7 @@ export default function JapanMap({ counts, onSelect }: Props) {
     if (e.pointerType === "mouse") setHover(p.id);
   };
   const up = (p: Prefecture, e: React.PointerEvent) => {
-    // タッチは1回目で照準、2回目でひらく
-    if (e.pointerType === "touch" && hover !== p.id) {
-      setHover(p.id);
-      return;
-    }
+    if (e.pointerType === "touch") setHover(p.id); // ラベルを一瞬表示
     onSelect?.(p);
   };
 

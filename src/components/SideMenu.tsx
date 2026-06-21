@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { countryByCode, JAPAN_CODE } from "@/lib/world";
 import { PREFECTURES } from "@/lib/prefectures";
+import type { RecordWithPhotos } from "@/lib/records";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   countryCounts: Record<string, number>;
   prefCounts: Record<number, number>;
+  favoriteIds: Set<string>;
+  allRecords: RecordWithPhotos[];
   onGlobe: () => void;
   onLog: () => void;
   onSearch: () => void;
@@ -17,6 +20,7 @@ type Props = {
   onLogout: () => void;
   onCountry: (code: string) => void; // 地球ズーム経由で国へ
   onPref: (id: number) => void; // 地球→日本ズーム経由で県へ
+  onSelectSpot: (r: RecordWithPhotos) => void;
 };
 
 const REGIONS = [
@@ -37,9 +41,27 @@ const itemStyle: React.CSSProperties = {
 
 export default function SideMenu({
   open, onClose, countryCounts, prefCounts,
-  onGlobe, onLog, onSearch, onShared, onProfile, onLogout, onCountry, onPref,
+  favoriteIds, allRecords, onGlobe, onLog, onSearch, onShared,
+  onProfile, onLogout, onCountry, onPref, onSelectSpot,
 }: Props) {
   const [openRegion, setOpenRegion] = useState<number | null>(null);
+  const [favOpen, setFavOpen] = useState(false);
+  const [openFavPref, setOpenFavPref] = useState<number | null>(null);
+
+  // お気に入りレコードを都道府県別にグルーピング
+  const favRecords = allRecords.filter((r) => favoriteIds.has(r.id));
+  const favByPref = new Map<number | null, RecordWithPhotos[]>();
+  for (const r of favRecords) {
+    const key = r.pref_code;
+    if (!favByPref.has(key)) favByPref.set(key, []);
+    favByPref.get(key)!.push(r);
+  }
+  // 都道府県コードでソート(nullは最後)
+  const favPrefEntries = [...favByPref.entries()].sort((a, b) => {
+    if (a[0] == null) return 1;
+    if (b[0] == null) return -1;
+    return a[0] - b[0];
+  });
 
   const visitedCountries = Object.keys(countryCounts)
     .filter((code) => code !== JAPAN_CODE && countryCounts[code] > 0)
@@ -106,6 +128,54 @@ export default function SideMenu({
             <Count n={c.n} />
           </button>
         ))}
+
+        <Cap>FAVORITES — お気に入り</Cap>
+        {favRecords.length === 0 ? (
+          <div style={{ fontSize: 11.5, color: "#5C574B", lineHeight: 1.9, padding: "6px 4px" }}>
+            まだお気に入りがありません。<br />記録の ♡ ボタンで追加できます。
+          </div>
+        ) : (
+          <>
+            <button style={itemStyle} onClick={() => setFavOpen(!favOpen)}>
+              <span style={{ fontSize: 14 }}>♡</span>
+              お気に入り
+              <span style={{ marginLeft: "auto", fontSize: 11, color: "#857E70", letterSpacing: "0.1em" }}>
+                {favRecords.length} {favOpen ? "−" : "+"}
+              </span>
+            </button>
+            {favOpen && (
+              <div style={{ borderLeft: "1px solid rgba(237,232,220,0.14)", marginLeft: 3, paddingLeft: 14, marginBottom: 6 }}>
+                {favPrefEntries.map(([prefCode, recs]) => {
+                  const prefName = prefCode != null
+                    ? (PREFECTURES.find((p) => p.id === prefCode)?.name ?? `都道府県${prefCode}`)
+                    : "海外・その他";
+                  const isOpen = openFavPref === prefCode;
+                  return (
+                    <div key={prefCode ?? "null"}>
+                      <button style={{ ...itemStyle, padding: "7px 4px", fontSize: 12.5 }}
+                        onClick={() => setOpenFavPref(isOpen ? null : prefCode)}>
+                        {prefName}
+                        <span style={{ marginLeft: "auto", fontSize: 11, color: "#857E70" }}>
+                          {recs.length} {isOpen ? "−" : "+"}
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <div style={{ borderLeft: "1px solid rgba(237,232,220,0.1)", marginLeft: 3, paddingLeft: 12, marginBottom: 4 }}>
+                          {recs.map((r) => (
+                            <button key={r.id} style={{ ...itemStyle, padding: "6px 4px", fontSize: 12, color: "#A09888" }}
+                              onClick={() => { onClose(); onSelectSpot(r); }}>
+                              {r.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
         <Cap>REGIONS — 地域別(日本)</Cap>
         {REGIONS.map((rg, i) => {
