@@ -32,6 +32,15 @@ export function useAccess(session: Session | null, authReady: boolean) {
       if (!alive) return;
       if (member) { setStatus("ok"); return; }
 
+      // Stripe課金会員かどうかをprofilesで確認
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("membership_status")
+        .eq("id", session.user.id)
+        .single();
+      if (!alive) return;
+      if (profile?.membership_status === "active") { setStatus("ok"); return; }
+
       if (mode === "members") {
         // クーポン利用者は無料アクセス許可
         const couponOk = (await supabase.rpc("has_coupon_access")).data === true;
@@ -113,6 +122,7 @@ export function InviteScreen({ onUnlocked, onLogout }: { onUnlocked: () => void;
 export function MembersOnlyScreen({ onLogout, onUnlocked }: { onLogout: () => void; onUnlocked: () => void }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showCoupon, setShowCoupon] = useState(false);
 
@@ -128,19 +138,48 @@ export function MembersOnlyScreen({ onLogout, onUnlocked }: { onLogout: () => vo
     }
   };
 
+  const startSubscription = async () => {
+    setSubscribing(true); setErr(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setErr("ログインが必要です。"); return; }
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({}),
+      });
+      const { url, error: apiErr } = await res.json();
+      if (apiErr || !url) { setErr("決済ページの準備に失敗しました。しばらくお待ちください。"); return; }
+      window.location.href = url;
+    } catch {
+      setErr("エラーが発生しました。もう一度お試しください。");
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   return (
     <div style={screenWrap}>
       <div className="card" style={card}>
         <div className="caption">S-pot</div>
         <h1 className="tz-serif" style={{ fontSize: 28, fontWeight: 700, margin: "8px 0 6px", letterSpacing: "0.12em" }}>
-          S-Labメンバー限定です
+          会員登録が必要です
         </h1>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 2, marginBottom: 22 }}>
-          このアプリは現在、S-Labの有効な会員の方だけがご利用いただけます。<br />
-          S-Labに登録しているメールアドレスでログインしてください。
+          S-potはS-Labの会員専用アプリです。<br />
+          月額プランにご登録いただくと、すべての機能をお使いいただけます。
         </p>
+
+        {/* Stripe月額登録ボタン */}
+        <button onClick={startSubscription} disabled={subscribing}
+          style={{ width: "100%", padding: 14, border: "none", background: "var(--shu)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: subscribing ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.16em", opacity: subscribing ? 0.6 : 1, marginBottom: 10 }}>
+          {subscribing ? "準備中…" : "月額プランに登録する  ¥980 / 月"}
+        </button>
+
+        {err && <p style={{ fontSize: 12.5, color: "var(--shu)", marginBottom: 12, lineHeight: 1.8 }}>{err}</p>}
+
         <button onClick={onLogout}
-          style={{ width: "100%", padding: 13, border: "1px solid var(--ink)", background: "transparent", color: "var(--ink)", fontSize: 13.5, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.12em" }}>
+          style={{ width: "100%", padding: 13, border: "1px solid rgba(237,232,220,0.2)", background: "transparent", color: "var(--ink-soft)", fontSize: 13, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}>
           別のメールでログインし直す
         </button>
 

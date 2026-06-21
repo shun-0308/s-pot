@@ -11,6 +11,8 @@ export default function ProfileSettings({ onClose }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [original, setOriginal] = useState("");
   const [busy, setBusy] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [hasStripe, setHasStripe] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
@@ -19,14 +21,31 @@ export default function ProfileSettings({ onClose }: Props) {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("display_name")
+        .select("display_name, stripe_customer_id")
         .eq("id", user.id)
         .single();
       const name = data?.display_name ?? "";
       setDisplayName(name);
       setOriginal(name);
+      setHasStripe(!!data?.stripe_customer_id);
     })();
   }, []);
+
+  const openPortal = async () => {
+    setPortalBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } finally {
+      setPortalBusy(false);
+    }
+  };
 
   const save = async () => {
     const name = displayName.trim();
@@ -72,6 +91,20 @@ export default function ProfileSettings({ onClose }: Props) {
         <h2 className="tz-serif" style={{ fontSize: 20, fontWeight: 700, margin: "0 0 24px", letterSpacing: "0.08em" }}>
           プロフィール設定
         </h2>
+
+        {/* プラン管理(Stripe会員のみ表示) */}
+        {hasStripe && (
+          <div style={{ marginBottom: 24, padding: "14px 16px", background: "var(--paper-raise)", border: "1px solid var(--hairline)" }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.14em", color: "var(--ink-faint)", marginBottom: 8 }}>SUBSCRIPTION</div>
+            <button onClick={openPortal} disabled={portalBusy}
+              style={{ width: "100%", padding: "9px 0", border: "1px solid rgba(237,232,220,0.2)", background: "none", color: "var(--ink-soft)", fontSize: 13, cursor: portalBusy ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.1em", opacity: portalBusy ? 0.6 : 1 }}>
+              {portalBusy ? "読み込み中…" : "プラン・お支払いを管理"}
+            </button>
+            <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 6 }}>
+              カード変更・解約はこちら（Stripeのページへ移動します）
+            </div>
+          </div>
+        )}
 
         <label style={{ display: "block", fontSize: 11, letterSpacing: "0.14em", color: "var(--ink-faint)", marginBottom: 8 }}>
           表示名
