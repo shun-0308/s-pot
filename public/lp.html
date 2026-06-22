@@ -2106,7 +2106,7 @@
   var SUPA_URL  = 'https://ccjhyokcqzrvdjctroyf.supabase.co';
   var SUPA_KEY  = 'sb_publishable_X-h_h3jdpHjY96UzJt5SxA_cxD7oock';
   var APP_URL   = 'https://s-pot.vercel.app';
-  var sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+  var sb = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { flowType: 'implicit' } });
 
   // ── ステップ切り替え ──
   window.coStep = function(name) {
