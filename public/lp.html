@@ -2198,15 +2198,20 @@
         },
         body: JSON.stringify({})
       });
-      var json = await res.json();
+      var text = await res.text();
+      var json;
+      try { json = JSON.parse(text); } catch(pe) {
+        document.getElementById('co-checkout-err-msg').textContent = 'APIエラー(' + res.status + '): ' + text.slice(0, 200);
+        coStep('checkout-error'); return;
+      }
       if (json.url) {
         window.location.href = json.url;
       } else {
-        document.getElementById('co-checkout-err-msg').textContent = json.error || '決済ページの準備に失敗しました。';
+        document.getElementById('co-checkout-err-msg').textContent = 'API: ' + (json.error || JSON.stringify(json));
         coStep('checkout-error');
       }
     } catch(e) {
-      document.getElementById('co-checkout-err-msg').textContent = 'エラーが発生しました。もう一度お試しください。';
+      document.getElementById('co-checkout-err-msg').textContent = 'fetch失敗: ' + e.message;
       coStep('checkout-error');
     }
   }
