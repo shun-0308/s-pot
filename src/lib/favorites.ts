@@ -9,10 +9,14 @@ export async function fetchFavoriteIds(): Promise<Set<string>> {
 // お気に入りをトグル。追加したら true、削除したら false を返す
 export async function toggleFavorite(recordId: string, isFav: boolean): Promise<boolean> {
   if (isFav) {
-    await supabase.from("favorites").delete().eq("record_id", recordId);
+    const { error } = await supabase.from("favorites").delete().eq("record_id", recordId);
+    if (error) throw error;
     return false;
   } else {
-    await supabase.from("favorites").insert({ record_id: recordId });
+    // user_id はDB側のデフォルト(auth.uid())で自動補完される
+    const { error } = await supabase.from("favorites").insert({ record_id: recordId });
+    // 23505 = 既に登録済み(UNIQUE違反)。その場合は「登録済み」として成功扱い
+    if (error && error.code !== "23505") throw error;
     return true;
   }
 }

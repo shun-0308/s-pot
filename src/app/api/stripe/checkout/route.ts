@@ -61,6 +61,8 @@ export async function POST(req: Request) {
       payment_method_types: ["card"],
       line_items: [{ price: resolvedPriceId, quantity: 1 }],
       mode: "subscription",
+      allow_promotion_codes: true,
+      payment_method_collection: "if_required",
       success_url: `${appUrl}/?checkout=success`,
       cancel_url: `${appUrl}/?checkout=cancel`,
       locale: "ja",

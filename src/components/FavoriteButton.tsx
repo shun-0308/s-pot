@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toggleFavorite } from "@/lib/favorites";
 
 type Props = {
@@ -13,6 +13,11 @@ type Props = {
 export default function FavoriteButton({ recordId, initialFav, size = 20, onToggle }: Props) {
   const [fav, setFav] = useState(initialFav);
   const [busy, setBusy] = useState(false);
+
+  // 親から渡される初期状態が後から変わったら追従する（詳細画面で非同期に判定が届くケース）
+  useEffect(() => {
+    setFav(initialFav);
+  }, [initialFav]);
 
   const handle = async (e: React.MouseEvent) => {
     e.stopPropagation();
