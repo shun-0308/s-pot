@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Photo from "./Photo";
+import UserProfileModal from "./UserProfileModal";
 import type { RecordWithPhotos } from "@/lib/records";
 import { captionOf, PREFECTURES } from "@/lib/prefectures";
 import { countryByCode, JAPAN_CODE } from "@/lib/world";
+import { supabase } from "@/lib/supabase";
+
+type UserResult = { id: string; display_name: string | null };
 
 type Props = {
   records: RecordWithPhotos[];
@@ -25,9 +29,33 @@ const selectStyle: React.CSSProperties = {
 };
 
 export default function SearchPage({ records, onBack, onSelectSpot }: Props) {
+  const [tab, setTab] = useState<"spot" | "user">("spot");
   const [q, setQ] = useState("");
   const [prefFilter, setPrefFilter] = useState<string>(""); // pref id as string
   const [yearFilter, setYearFilter] = useState<string>("");
+
+  // ユーザー検索
+  const [userQ, setUserQ] = useState("");
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
+  const [userSearching, setUserSearching] = useState(false);
+  const [profileTarget, setProfileTarget] = useState<UserResult | null>(null);
+  const userTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (userTimer.current) clearTimeout(userTimer.current);
+    const kw = userQ.trim();
+    if (!kw) { setUserResults([]); return; }
+    userTimer.current = setTimeout(async () => {
+      setUserSearching(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .ilike("display_name", `%${kw}%`)
+        .limit(20);
+      setUserResults((data ?? []) as UserResult[]);
+      setUserSearching(false);
+    }, 300);
+  }, [userQ]);
 
   // 撮影年の候補(新しい順)
   const years = useMemo(() => {
@@ -75,9 +103,56 @@ export default function SearchPage({ records, onBack, onSelectSpot }: Props) {
 
         <div className="caption" style={{ marginTop: 16 }}>SEARCH</div>
         <h2 className="tz-serif" style={{ fontSize: 26, fontWeight: 700, margin: "2px 0 14px", letterSpacing: "0.1em" }}>
-          記録をさがす
+          {tab === "spot" ? "記録をさがす" : "ユーザーをさがす"}
         </h2>
 
+        {/* タブ */}
+        <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid var(--hairline)" }}>
+          {(["spot", "user"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: "6px 18px", fontFamily: "inherit", fontSize: 12,
+                letterSpacing: "0.1em", color: tab === t ? "var(--shu)" : "var(--ink-faint)",
+                borderBottom: tab === t ? "2px solid var(--shu)" : "2px solid transparent",
+                marginBottom: -1,
+              }}>
+              {t === "spot" ? "記録" : "ユーザー"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "user" ? (
+          <>
+            <input value={userQ} onChange={(e) => setUserQ(e.target.value)} autoFocus
+              placeholder="ユーザー名で検索"
+              style={{ width: "100%", boxSizing: "border-box", padding: "12px 13px", border: "1px solid var(--hairline)", background: "var(--paper-raise)", color: "var(--ink)", fontFamily: "inherit", fontSize: 14, borderRadius: 0, marginBottom: 10 }} />
+            {userSearching && (
+              <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "8px 0" }}>検索中…</div>
+            )}
+            {!userSearching && userQ.trim() && userResults.length === 0 && (
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", textAlign: "center", padding: "44px 20px", border: "1px dashed var(--ink-faint)", marginTop: 14 }}>
+                該当するユーザーが見つかりませんでした
+              </div>
+            )}
+            {userResults.map((u) => (
+              <div key={u.id} onClick={() => setProfileTarget(u)} role="button"
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 0", borderBottom: "1px solid var(--hairline)", cursor: "pointer" }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "var(--shu)", display: "flex", alignItems: "center",
+                  justifyContent: "center", color: "var(--paper)", fontSize: 14, fontWeight: 700, fontFamily: "serif", flexShrink: 0,
+                }}>
+                  {u.display_name ? u.display_name.charAt(0) : "?"}
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 500, letterSpacing: "0.06em" }}>
+                  {u.display_name ?? "名無し"}
+                </span>
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
         {/* キーワード */}
         <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus
           placeholder="場所名・記録文のことばで検索(例: 紫陽花、城、夕暮れ)"
@@ -133,7 +208,18 @@ export default function SearchPage({ records, onBack, onSelectSpot }: Props) {
             </div>
           ))
         )}
+          </>
+        )}
       </div>
+
+      {profileTarget && (
+        <UserProfileModal
+          userId={profileTarget.id}
+          displayName={profileTarget.display_name}
+          onClose={() => setProfileTarget(null)}
+          onSelectSpot={onSelectSpot}
+        />
+      )}
     </div>
   );
 }

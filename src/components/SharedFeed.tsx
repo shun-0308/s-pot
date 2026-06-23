@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Photo from "./Photo";
 import FavoriteButton from "./FavoriteButton";
+import UserProfileModal from "./UserProfileModal";
 import { fetchSharedRecords, type RecordWithPhotos } from "@/lib/records";
 import { fetchFavoriteIds } from "@/lib/favorites";
 import { captionOf } from "@/lib/prefectures";
@@ -75,6 +76,7 @@ export default function SharedFeed({
   const [records, setRecords] = useState<RecordWithPhotos[] | null>(null);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [profileTarget, setProfileTarget] = useState<{ userId: string; displayName: string | null } | null>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -195,7 +197,11 @@ export default function SharedFeed({
               display: "flex", alignItems: "center", justifyContent: "space-between",
               marginBottom: 10,
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                role="button"
+                onClick={(e) => { e.stopPropagation(); setProfileTarget({ userId: r.user_id, displayName: r.display_name ?? null }); }}
+                style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+              >
                 <div style={{
                   width: 28, height: 28, borderRadius: "50%",
                   background: "var(--shu)", display: "flex",
@@ -238,6 +244,15 @@ export default function SharedFeed({
           </div>
         ))}
       </div>
+
+      {profileTarget && (
+        <UserProfileModal
+          userId={profileTarget.userId}
+          displayName={profileTarget.displayName}
+          onClose={() => setProfileTarget(null)}
+          onSelectSpot={onSelectSpot}
+        />
+      )}
     </div>
   );
 }
