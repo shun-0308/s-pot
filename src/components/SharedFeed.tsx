@@ -219,6 +219,11 @@ export default function SharedFeed({
                 recordId={r.id}
                 initialFav={favIds.has(r.id)}
                 size={18}
+                onToggle={(next) => setFavIds((prev) => {
+                  const s = new Set(prev);
+                  if (next) s.add(r.id); else s.delete(r.id);
+                  return s;
+                })}
               />
             </div>
 

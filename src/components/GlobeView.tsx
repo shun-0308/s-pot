@@ -359,10 +359,12 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
     }
 
     // ── 入力 ──
+    let downOnCanvas = false; // canvasでpointerdownが起きた場合のみtrueにする
     const onPointerDown = (e: PointerEvent) => {
       downAt = { x: e.clientX, y: e.clientY };
       moved = false;
       dragging = true;
+      downOnCanvas = true;
       lastInteract = performance.now();
     };
     const onPointerMove = (e: PointerEvent) => {
@@ -384,6 +386,9 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
     const onPointerUp = (e: PointerEvent) => {
       const wasDrag = moved;
       dragging = false;
+      // canvasでpointerdownが起きていない場合(メニュー等のUI操作)は無視する
+      if (!downOnCanvas) return;
+      downOnCanvas = false;
       if (wasDrag || mode !== "free") return;
       const c = pick(e.clientX, e.clientY);
       if (!c) return;
