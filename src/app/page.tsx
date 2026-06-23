@@ -335,7 +335,7 @@ export default function Home() {
         onLogout={() => { setMenuOpen(false); supabase.auth.signOut(); }}
         onCountry={navToCountry}
         onPref={navToPref}
-        onSelectSpot={(r) => { setMenuOpen(false); setSpot(r); }}
+        onSelectSpot={(r) => { setMenuOpen(false); setView("log"); setSpot(r); }}
       />
     </>
   );
