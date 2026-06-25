@@ -6,7 +6,15 @@
       "Read(//Users/shunmatsumoto/Documents/shun-studio/**)",
       "Bash(npm run *)",
       "Bash(lsof -nP -iTCP -sTCP:LISTEN)",
-      "Bash(lsof *)"
+      "Bash(lsof *)",
+      "Bash(vercel --version)",
+      "Bash(vercel *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(rm /Users/shunmatsumoto/Documents/s-pot/.git/HEAD.lock)",
+      "Bash(rm /Users/shunmatsumoto/Documents/s-pot/.git/index.lock)",
+      "Bash(git -C /Users/shunmatsumoto/Documents/s-pot add src/components/FavoriteButton.tsx src/lib/favorites.ts src/app/api/stripe/checkout/route.ts)",
+      "Bash(git -C /Users/shunmatsumoto/Documents/s-pot commit -m \"fix: お気に入りボタンの状態同期改善とStripeプロモコード対応\")"
     ]
   }
 }

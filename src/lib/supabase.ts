@@ -56,3 +56,14 @@ export type FavoriteRow = {
   record_id: string;
   created_at: string;
 };
+
+// プロフィール(表示名 + 充実項目)
+export type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  bio: string | null;        // 自己紹介
+  area: string | null;       // 拠点・活動エリア
+  instagram: string | null;  // Instagram(ID or URL)
+  website: string | null;    // サイト/その他リンク
+  gear: string | null;       // 使用機材
+};

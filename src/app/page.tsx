@@ -26,7 +26,7 @@ import {
   backfillMissingCoords,
   type RecordWithPhotos,
 } from "@/lib/records";
-import { fetchFavoriteIds } from "@/lib/favorites";
+import { fetchFavoriteIds, fetchFavoriteRecords } from "@/lib/favorites";
 import { captionOf, prefByCode, PREF_EN, type Prefecture } from "@/lib/prefectures";
 import Photo from "@/components/Photo";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -51,6 +51,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favoriteRecords, setFavoriteRecords] = useState<RecordWithPhotos[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
   const [pendingPref, setPendingPref] = useState<number | null>(null);
@@ -69,9 +70,12 @@ export default function Home() {
   // 記録ロード
   const reload = useCallback(async () => {
     try {
-      const [recs, favIds] = await Promise.all([fetchRecords(), fetchFavoriteIds()]);
+      const [recs, favIds, favRecs] = await Promise.all([
+        fetchRecords(), fetchFavoriteIds(), fetchFavoriteRecords(),
+      ]);
       setRecords(recs);
       setFavoriteIds(favIds);
+      setFavoriteRecords(favRecs);
       // 住所ありで座標なしの記録をバックグラウンドで補完(完了後に再ロード)
       const needs = recs.filter((r) => r.lat == null && r.address);
       if (needs.length) {
@@ -85,8 +89,23 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (session) reload();
-    else { setRecords([]); setFavoriteIds(new Set()); }
+    else { setRecords([]); setFavoriteIds(new Set()); setFavoriteRecords([]); }
   }, [session, reload]);
+
+  // ── お気に入りトグル(全画面で共有・楽観更新) ──
+  // recはハートを押した記録そのもの。メニューのお気に入り一覧(favoriteRecords)にも
+  // 即座に反映するので、みんなの図鑑で付けた他人の記録もメニューに出る。
+  const handleToggleFavorite = useCallback((rec: RecordWithPhotos, next: boolean) => {
+    setFavoriteIds((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(rec.id); else s.delete(rec.id);
+      return s;
+    });
+    setFavoriteRecords((prev) => {
+      if (next) return prev.some((r) => r.id === rec.id) ? prev : [rec, ...prev];
+      return prev.filter((r) => r.id !== rec.id);
+    });
+  }, []);
 
 
   // アクセス制御(公開モード+S-Lab会員判定)
@@ -325,8 +344,7 @@ export default function Home() {
         onClose={() => setMenuOpen(false)}
         countryCounts={countryCounts}
         prefCounts={prefCounts}
-        favoriteIds={favoriteIds}
-        allRecords={records}
+        favoriteRecords={favoriteRecords}
         onGlobe={() => { setMenuOpen(false); resetEntryState(); setSpot(null); setPref(null); setCountry(null); setPendingPref(null); setFlyTo(null); setGlobeFromJapan(false); setView("globe"); }}
         onLog={() => { setMenuOpen(false); setSpot(null); setView("log"); }}
         onSearch={() => { setMenuOpen(false); setSpot(null); setView("search"); }}
@@ -356,6 +374,7 @@ export default function Home() {
         <GlobeView
           counts={countryCounts}
           startFromJapan={globeFromJapan}
+          interactive={!menuOpen && !profileOpen}
           flyToCode={flyTo?.code ?? null}
           flyToKey={flyTo?.key}
           onEnterJapan={() => {
@@ -388,7 +407,8 @@ export default function Home() {
     );
 
   if (view === "shared" && !spot)
-    return <>{overlays}<SharedFeed onBack={() => setView("globe")} onSelectSpot={setSpot} /></>;
+    return <>{overlays}<SharedFeed onBack={() => setView("globe")} onSelectSpot={setSpot}
+      favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} /></>;
 
   if (view === "search")
     return (
@@ -415,6 +435,8 @@ export default function Home() {
         {errorBar}
         <SpotDetail backLabel={backLabel} captionText={captionText} rec={spot} busy={busy}
           isOwner={spot.user_id === session?.user.id}
+          isFav={favoriteIds.has(spot.id)}
+          onToggleFav={(next) => handleToggleFavorite(spot, next)}
           onBack={() => setSpot(null)} onUpdate={handleUpdate} onDelete={handleDelete} />
       </>
     );
@@ -452,17 +474,13 @@ export default function Home() {
               </div>
             )}
           </div>
-          <FavoriteButton
-            recordId={r.id}
-            initialFav={favoriteIds.has(r.id)}
-            onToggle={(next) => {
-              setFavoriteIds((prev) => {
-                const s = new Set(prev);
-                if (next) s.add(r.id); else s.delete(r.id);
-                return s;
-              });
-            }}
-          />
+          <div onClick={(e) => e.stopPropagation()} style={{ flexShrink: 0 }}>
+            <FavoriteButton
+              recordId={r.id}
+              initialFav={favoriteIds.has(r.id)}
+              onToggle={(next) => handleToggleFavorite(r, next)}
+            />
+          </div>
         </div>
       );
     }

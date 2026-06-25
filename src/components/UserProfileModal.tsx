@@ -13,10 +13,30 @@ type Props = {
   onSelectSpot?: (rec: RecordWithPhotos) => void;
 };
 
+type ProfileInfo = {
+  bio: string | null;
+  area: string | null;
+  instagram: string | null;
+  website: string | null;
+  gear: string | null;
+};
+
+// Instagram入力(@id でも URL でも)を開けるURLに正規化
+function instaUrl(v: string): string {
+  const t = v.trim();
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://instagram.com/${t.replace(/^@/, "")}`;
+}
+function siteUrl(v: string): string {
+  const t = v.trim();
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+}
+
 export default function UserProfileModal({ userId, displayName, onClose, onSelectSpot }: Props) {
   const [following, setFollowing] = useState<boolean | null>(null);
   const [followerCount, setFollowerCount] = useState<number | null>(null);
   const [records, setRecords] = useState<RecordWithPhotos[] | null>(null);
+  const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [isSelf, setIsSelf] = useState(false);
 
@@ -33,6 +53,14 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
       ]);
       setFollowing(fwing);
       setFollowerCount(fwCount);
+
+      // プロフィール詳細(自己紹介・拠点・SNS・機材)
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("bio, area, instagram, website, gear")
+        .eq("id", userId)
+        .single();
+      setProfile(prof ?? { bio: null, area: null, instagram: null, website: null, gear: null });
 
       // 公開記録を取得
       const { data } = await supabase
@@ -155,6 +183,45 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
             </button>
           </div>
         </div>
+
+        {/* プロフィール詳細 */}
+        {profile && (profile.bio || profile.area || profile.gear || profile.instagram || profile.website) && (
+          <div style={{ marginBottom: 22, paddingBottom: 18, borderBottom: "1px solid var(--hairline)" }}>
+            {profile.bio && (
+              <p style={{ fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.9, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>
+                {profile.bio}
+              </p>
+            )}
+            {profile.area && (
+              <div style={{ fontSize: 12.5, color: "var(--ink-mid)", marginTop: 4, display: "flex", gap: 8 }}>
+                <span style={{ color: "var(--ink-faint)", letterSpacing: "0.1em", flexShrink: 0 }}>拠点</span>
+                <span>{profile.area}</span>
+              </div>
+            )}
+            {profile.gear && (
+              <div style={{ fontSize: 12.5, color: "var(--ink-mid)", marginTop: 6, display: "flex", gap: 8 }}>
+                <span style={{ color: "var(--ink-faint)", letterSpacing: "0.1em", flexShrink: 0 }}>機材</span>
+                <span>{profile.gear}</span>
+              </div>
+            )}
+            {(profile.instagram || profile.website) && (
+              <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
+                {profile.instagram && (
+                  <a href={instaUrl(profile.instagram)} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, color: "var(--shu)", textDecoration: "none", letterSpacing: "0.06em", borderBottom: "1px solid var(--shu)", paddingBottom: 2 }}>
+                    Instagram ↗
+                  </a>
+                )}
+                {profile.website && (
+                  <a href={siteUrl(profile.website)} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, color: "var(--shu)", textDecoration: "none", letterSpacing: "0.06em", borderBottom: "1px solid var(--shu)", paddingBottom: 2 }}>
+                    サイト ↗
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 公開記録グリッド */}
         <div className="caption" style={{ marginBottom: 10 }}>

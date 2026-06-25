@@ -10,8 +10,7 @@ type Props = {
   onClose: () => void;
   countryCounts: Record<string, number>;
   prefCounts: Record<number, number>;
-  favoriteIds: Set<string>;
-  allRecords: RecordWithPhotos[];
+  favoriteRecords: RecordWithPhotos[]; // お気に入りに登録した記録(自分・他人とも)
   onGlobe: () => void;
   onLog: () => void;
   onSearch: () => void;
@@ -41,7 +40,7 @@ const itemStyle: React.CSSProperties = {
 
 export default function SideMenu({
   open, onClose, countryCounts, prefCounts,
-  favoriteIds, allRecords, onGlobe, onLog, onSearch, onShared,
+  favoriteRecords, onGlobe, onLog, onSearch, onShared,
   onProfile, onLogout, onCountry, onPref, onSelectSpot,
 }: Props) {
   const [openRegion, setOpenRegion] = useState<number | null>(null);
@@ -49,7 +48,7 @@ export default function SideMenu({
   const [openFavPref, setOpenFavPref] = useState<number | null>(null);
 
   // お気に入りレコードを都道府県別にグルーピング
-  const favRecords = allRecords.filter((r) => favoriteIds.has(r.id));
+  const favRecords = favoriteRecords;
   const favByPref = new Map<number | null, RecordWithPhotos[]>();
   for (const r of favRecords) {
     const key = r.pref_code;

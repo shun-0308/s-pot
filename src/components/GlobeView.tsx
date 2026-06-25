@@ -8,6 +8,7 @@ import { COUNTRIES, JAPAN_CODE, type Country } from "@/lib/world";
 type Props = {
   counts: Record<string, number>; // country_code → 記録数
   startFromJapan?: boolean; // 日本地図から戻ってきたとき、日本からズームアウト
+  interactive?: boolean; // メニュー等が開いている間は false にして地球の操作を止める
   flyToCode?: string | null; // メニューからの指定国へ自動ズーム
   flyToKey?: number;
   onEnterJapan: () => void;
@@ -38,13 +39,16 @@ const localToLatLon = (p: THREE.Vector3): [number, number] => {
 };
 
 // 衛星写真の3D地球。ドラッグで回転、国をポイントすると照準線、クリックでズームイン。
-export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey, onEnterJapan, onEnterCountry }: Props) {
+export default function GlobeView({ counts, startFromJapan, interactive = true, flyToCode, flyToKey, onEnterJapan, onEnterCountry }: Props) {
   const bgRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<HTMLCanvasElement>(null);
   const hudRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const countsRef = useRef(counts);
   countsRef.current = counts;
+  // メニュー等のオーバーレイ表示中は地球の入力を無視する(タッチ貫通による誤操作を防ぐ)
+  const interactiveRef = useRef(interactive);
+  interactiveRef.current = interactive;
   const cbRef = useRef({ onEnterJapan, onEnterCountry });
   cbRef.current = { onEnterJapan, onEnterCountry };
 
@@ -361,6 +365,7 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
     // ── 入力 ──
     let downOnCanvas = false; // canvasでpointerdownが起きた場合のみtrueにする
     const onPointerDown = (e: PointerEvent) => {
+      if (!interactiveRef.current) return; // メニュー表示中は無視
       downAt = { x: e.clientX, y: e.clientY };
       moved = false;
       dragging = true;
@@ -368,6 +373,7 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
       lastInteract = performance.now();
     };
     const onPointerMove = (e: PointerEvent) => {
+      if (!interactiveRef.current) { dragging = false; return; }
       mouse = { x: e.clientX, y: e.clientY, inside: true };
       lastInteract = performance.now();
       if (dragging && mode === "free") {
@@ -385,20 +391,25 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
     };
     const onPointerUp = (e: PointerEvent) => {
       const wasDrag = moved;
+      const startedOnCanvas = downOnCanvas;
+      // どんな終了でも掴み状態は必ず解除(取りこぼしで操作が固まらないように)
       dragging = false;
-      // canvasでpointerdownが起きていない場合(メニュー等のUI操作)は無視する
-      if (!downOnCanvas) return;
       downOnCanvas = false;
+      // メニュー表示中、またはcanvasでpointerdownが起きていない(UI操作)ときは無視する
+      if (!interactiveRef.current || !startedOnCanvas) return;
       if (wasDrag || mode !== "free") return;
       const c = pick(e.clientX, e.clientY);
       if (!c) return;
       // マウスもタッチも「タップ＝その国をひらく」に統一(分かりやすさ優先)
       activate(c);
     };
+    // タッチがスクロール等に化けてキャンセルされたとき、掴み状態を確実にリセットする
+    const onPointerCancel = () => { dragging = false; downOnCanvas = false; moved = false; };
     const onLeave = () => { mouse.inside = false; hover = null; hlDirty = true; };
     hud.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
     hud.addEventListener("pointerleave", onLeave);
 
     // ── 描画ループ ──
@@ -668,6 +679,7 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
       hud.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
       hud.removeEventListener("pointerleave", onLeave);
       renderer.dispose();
       earth.geometry.dispose();
@@ -684,7 +696,7 @@ export default function GlobeView({ counts, startFromJapan, flyToCode, flyToKey,
     <div ref={wrapRef} style={{ position: "fixed", inset: 0, background: "#07080C", transition: "opacity .55s ease" }}>
       <canvas ref={bgRef} style={{ position: "absolute", inset: 0 }} />
       <canvas ref={glRef} style={{ position: "absolute", inset: 0 }} />
-      <canvas ref={hudRef} style={{ position: "absolute", inset: 0, touchAction: "none" }} />
+      <canvas ref={hudRef} style={{ position: "absolute", inset: 0, touchAction: "none", pointerEvents: interactive ? "auto" : "none" }} />
       <div style={{ position: "absolute", top: 42, left: 0, right: 0, textAlign: "center", pointerEvents: "none" }}>
         <div className="caption" style={{ color: "#857E70" }}>MY TRAVEL ATLAS</div>
         <div className="tz-serif" style={{ fontSize: 30, fontWeight: 700, letterSpacing: "0.18em", color: "#EDE8DC", marginTop: 6 }}>

@@ -7,9 +7,21 @@ type Props = {
   onClose: () => void;
 };
 
+// 編集できるプロフィール項目
+type ProfileForm = {
+  display_name: string;
+  bio: string;
+  area: string;
+  instagram: string;
+  website: string;
+  gear: string;
+};
+
+const EMPTY: ProfileForm = { display_name: "", bio: "", area: "", instagram: "", website: "", gear: "" };
+
 export default function ProfileSettings({ onClose }: Props) {
-  const [displayName, setDisplayName] = useState("");
-  const [original, setOriginal] = useState("");
+  const [form, setForm] = useState<ProfileForm>(EMPTY);
+  const [original, setOriginal] = useState<ProfileForm>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
   const [hasStripe, setHasStripe] = useState(false);
@@ -21,15 +33,25 @@ export default function ProfileSettings({ onClose }: Props) {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("display_name, stripe_customer_id")
+        .select("display_name, bio, area, instagram, website, gear, stripe_customer_id")
         .eq("id", user.id)
         .single();
-      const name = data?.display_name ?? "";
-      setDisplayName(name);
-      setOriginal(name);
+      const loaded: ProfileForm = {
+        display_name: data?.display_name ?? "",
+        bio: data?.bio ?? "",
+        area: data?.area ?? "",
+        instagram: data?.instagram ?? "",
+        website: data?.website ?? "",
+        gear: data?.gear ?? "",
+      };
+      setForm(loaded);
+      setOriginal(loaded);
       setHasStripe(!!data?.stripe_customer_id);
     })();
   }, []);
+
+  const set = (k: keyof ProfileForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const dirty = (Object.keys(form) as (keyof ProfileForm)[]).some((k) => form[k].trim() !== original[k].trim());
 
   const openPortal = async () => {
     setPortalBusy(true);
@@ -48,25 +70,40 @@ export default function ProfileSettings({ onClose }: Props) {
   };
 
   const save = async () => {
-    const name = displayName.trim();
-    if (!name) { setMsg({ type: "err", text: "名前を入力してください" }); return; }
+    const name = form.display_name.trim();
+    if (!name) { setMsg({ type: "err", text: "表示名を入力してください" }); return; }
     setBusy(true);
     setMsg(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("未ログイン");
-      const { error } = await supabase
-        .from("profiles")
-        .update({ display_name: name })
-        .eq("id", user.id);
+      const payload = {
+        display_name: name,
+        bio: form.bio.trim() || null,
+        area: form.area.trim() || null,
+        instagram: form.instagram.trim() || null,
+        website: form.website.trim() || null,
+        gear: form.gear.trim() || null,
+      };
+      const { error } = await supabase.from("profiles").update(payload).eq("id", user.id);
       if (error) throw error;
-      setOriginal(name);
+      setOriginal({ ...form, display_name: name });
       setMsg({ type: "ok", text: "保存しました" });
     } catch (e) {
       setMsg({ type: "err", text: e instanceof Error ? e.message : "保存に失敗しました" });
     } finally {
       setBusy(false);
     }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 11, letterSpacing: "0.14em", color: "var(--ink-faint)", margin: "16px 0 8px",
+  };
+  const inputStyle: React.CSSProperties = {
+    width: "100%", boxSizing: "border-box",
+    border: "1px solid var(--hairline)", background: "var(--paper-raise)",
+    padding: "10px 12px", fontSize: 14, fontFamily: "inherit", color: "var(--ink)",
+    outline: "none",
   };
 
   return (
@@ -78,7 +115,8 @@ export default function ProfileSettings({ onClose }: Props) {
       {/* モーダル */}
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-        zIndex: 91, background: "var(--paper)", padding: "32px 28px", width: "min(420px, 92vw)",
+        zIndex: 91, background: "var(--paper)", padding: "32px 28px", width: "min(440px, 92vw)",
+        maxHeight: "88vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
         <button onClick={onClose} aria-label="閉じる"
@@ -88,13 +126,13 @@ export default function ProfileSettings({ onClose }: Props) {
         </button>
 
         <div className="caption" style={{ marginBottom: 4 }}>ACCOUNT</div>
-        <h2 className="tz-serif" style={{ fontSize: 20, fontWeight: 700, margin: "0 0 24px", letterSpacing: "0.08em" }}>
+        <h2 className="tz-serif" style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px", letterSpacing: "0.08em" }}>
           プロフィール設定
         </h2>
 
         {/* プラン管理(Stripe会員のみ表示) */}
         {hasStripe && (
-          <div style={{ marginBottom: 24, padding: "14px 16px", background: "var(--paper-raise)", border: "1px solid var(--hairline)" }}>
+          <div style={{ margin: "18px 0 6px", padding: "14px 16px", background: "var(--paper-raise)", border: "1px solid var(--hairline)" }}>
             <div style={{ fontSize: 11, letterSpacing: "0.14em", color: "var(--ink-faint)", marginBottom: 8 }}>SUBSCRIPTION</div>
             <button onClick={openPortal} disabled={portalBusy}
               style={{ width: "100%", padding: "9px 0", border: "1px solid rgba(237,232,220,0.2)", background: "none", color: "var(--ink-soft)", fontSize: 13, cursor: portalBusy ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.1em", opacity: portalBusy ? 0.6 : 1 }}>
@@ -106,28 +144,46 @@ export default function ProfileSettings({ onClose }: Props) {
           </div>
         )}
 
-        <label style={{ display: "block", fontSize: 11, letterSpacing: "0.14em", color: "var(--ink-faint)", marginBottom: 8 }}>
-          表示名
-        </label>
-        <input
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          maxLength={30}
-          placeholder="例: シュン / 塚真"
-          style={{
-            width: "100%", boxSizing: "border-box",
-            border: "1px solid var(--hairline)", background: "var(--paper-raise)",
-            padding: "10px 12px", fontSize: 14, fontFamily: "inherit", color: "var(--ink)",
-            outline: "none",
-          }}
-        />
+        {/* 表示名 */}
+        <label style={labelStyle}>表示名 <span style={{ color: "var(--shu)" }}>*</span></label>
+        <input value={form.display_name} onChange={(e) => set("display_name", e.target.value)}
+          maxLength={30} placeholder="例: シュン / 塚真" style={inputStyle} />
         <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 6 }}>
           みんなの図鑑でこの名前が表示されます（最大30文字）
         </div>
 
+        {/* 自己紹介 */}
+        <label style={labelStyle}>自己紹介</label>
+        <textarea value={form.bio} onChange={(e) => set("bio", e.target.value)}
+          maxLength={300} rows={4} placeholder="旅と写真について、ひとこと。"
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.7 }} />
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4, textAlign: "right" }}>
+          {form.bio.length}/300
+        </div>
+
+        {/* 拠点・活動エリア */}
+        <label style={labelStyle}>拠点・活動エリア</label>
+        <input value={form.area} onChange={(e) => set("area", e.target.value)}
+          maxLength={40} placeholder="例: 東京 / 瀬戸内 を中心に" style={inputStyle} />
+
+        {/* 使用機材 */}
+        <label style={labelStyle}>使用機材</label>
+        <input value={form.gear} onChange={(e) => set("gear", e.target.value)}
+          maxLength={80} placeholder="例: SONY α7IV / 24-70mm" style={inputStyle} />
+
+        {/* Instagram */}
+        <label style={labelStyle}>Instagram</label>
+        <input value={form.instagram} onChange={(e) => set("instagram", e.target.value)}
+          maxLength={60} placeholder="例: @your_id または URL" style={inputStyle} />
+
+        {/* サイト・その他リンク */}
+        <label style={labelStyle}>サイト・その他リンク</label>
+        <input value={form.website} onChange={(e) => set("website", e.target.value)}
+          maxLength={120} placeholder="例: https://your-site.com" style={inputStyle} />
+
         {msg && (
           <div style={{
-            marginTop: 14, padding: "8px 12px", fontSize: 12.5,
+            marginTop: 16, padding: "8px 12px", fontSize: 12.5,
             borderLeft: `2px solid ${msg.type === "ok" ? "var(--ink-soft)" : "var(--shu)"}`,
             color: msg.type === "ok" ? "var(--ink-soft)" : "var(--shu)",
           }}>
@@ -141,11 +197,11 @@ export default function ProfileSettings({ onClose }: Props) {
               fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-soft)", letterSpacing: "0.1em" }}>
             キャンセル
           </button>
-          <button onClick={save} disabled={busy || displayName.trim() === original}
+          <button onClick={save} disabled={busy || !dirty}
             style={{
               background: "var(--ink)", color: "var(--paper)", border: "none",
-              padding: "9px 24px", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit",
-              letterSpacing: "0.1em", opacity: busy || displayName.trim() === original ? 0.5 : 1,
+              padding: "9px 24px", fontSize: 12.5, cursor: busy || !dirty ? "default" : "pointer", fontFamily: "inherit",
+              letterSpacing: "0.1em", opacity: busy || !dirty ? 0.5 : 1,
             }}>
             {busy ? "保存中…" : "保存"}
           </button>

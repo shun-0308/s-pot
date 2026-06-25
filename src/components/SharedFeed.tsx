@@ -6,7 +6,6 @@ import Photo from "./Photo";
 import FavoriteButton from "./FavoriteButton";
 import UserProfileModal from "./UserProfileModal";
 import { fetchSharedRecords, type RecordWithPhotos } from "@/lib/records";
-import { fetchFavoriteIds } from "@/lib/favorites";
 import { captionOf } from "@/lib/prefectures";
 
 // SSR を完全に切る（Leaflet は SSR 不可、client mount 後に初期化する）
@@ -69,22 +68,22 @@ function GuidelineNote() {
 export default function SharedFeed({
   onBack,
   onSelectSpot,
+  favoriteIds,
+  onToggleFavorite,
 }: {
   onBack: () => void;
   onSelectSpot?: (rec: RecordWithPhotos) => void;
+  favoriteIds: Set<string>; // 親(page)が持つお気に入りID。メニューと共有
+  onToggleFavorite: (rec: RecordWithPhotos, next: boolean) => void;
 }) {
   const [records, setRecords] = useState<RecordWithPhotos[] | null>(null);
-  const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [profileTarget, setProfileTarget] = useState<{ userId: string; displayName: string | null } | null>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
-    Promise.all([fetchSharedRecords(), fetchFavoriteIds()])
-      .then(([recs, ids]) => {
-        setRecords(recs);
-        setFavIds(ids);
-      })
+    fetchSharedRecords()
+      .then((recs) => setRecords(recs))
       .catch((e) => setError(e instanceof Error ? e.message : "読み込みに失敗しました"));
   }, []);
 
@@ -215,16 +214,14 @@ export default function SharedFeed({
                   {r.display_name ?? "名無し"}
                 </span>
               </div>
-              <FavoriteButton
-                recordId={r.id}
-                initialFav={favIds.has(r.id)}
-                size={18}
-                onToggle={(next) => setFavIds((prev) => {
-                  const s = new Set(prev);
-                  if (next) s.add(r.id); else s.delete(r.id);
-                  return s;
-                })}
-              />
+              <div onClick={(e) => e.stopPropagation()}>
+                <FavoriteButton
+                  recordId={r.id}
+                  initialFav={favoriteIds.has(r.id)}
+                  size={18}
+                  onToggle={(next) => onToggleFavorite(r, next)}
+                />
+              </div>
             </div>
 
             {/* 写真 */}
