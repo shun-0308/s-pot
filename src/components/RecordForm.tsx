@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { RecordWithPhotos } from "@/lib/records";
 import type { Visibility, ScoutInfo } from "@/lib/supabase";
 import { PREFECTURES } from "@/lib/prefectures";
+import { geocodePlace } from "@/lib/geocode";
+
+const LocationPicker = dynamic(() => import("./LocationPicker"), {
+  ssr: false,
+  loading: () => <div style={{ height: 260, background: "#EDEDEA", border: "1px solid var(--hairline)" }} />,
+});
 
 const DRAFT_KEY = "s-pot-draft-new";
 
@@ -17,6 +24,8 @@ export type FormValues = {
   visibility: Visibility;
   scout: ScoutInfo;
   pref_code?: number | null; // 編集時に都道府県を選び直せる(日本の記録)
+  lat?: number | null; // 手動ピン or 自動判定の緯度
+  lng?: number | null; // 〃 経度
 };
 
 const SCOUT_TIMES = ["朝焼け", "午前", "午後", "夕暮れ", "夜景"];
@@ -40,6 +49,7 @@ type Props = {
   initial?: Partial<FormValues>;
   existing?: RecordWithPhotos | null; // 編集時(既存写真の表示用)
   prefSelectable?: boolean; // 都道府県を選び直せるようにする(日本の記録の編集)
+  jpOnly?: boolean; // 住所検索を日本国内に絞る(日本の記録)。海外はfalse
   busy: boolean;
   onSubmit: (v: FormValues) => void;
   onCancel: () => void;
@@ -58,7 +68,7 @@ const inputStyle = {
   color: "var(--ink)",
 };
 
-export default function RecordForm({ title, initial, existing, prefSelectable, busy, onSubmit, onCancel }: Props) {
+export default function RecordForm({ title, initial, existing, prefSelectable, jpOnly = true, busy, onSubmit, onCancel }: Props) {
   const isEdit = !!existing;
   const [v, setV] = useState<FormValues>(() => {
     // 新規作成時のみ下書きを復元
@@ -81,13 +91,35 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
       visibility: initial?.visibility ?? "private",
       scout: initial?.scout ?? {},
       pref_code: initial?.pref_code ?? null,
+      lat: initial?.lat ?? null,
+      lng: initial?.lng ?? null,
     };
   });
   const [scoutOpen, setScoutOpen] = useState(
     !!initial?.scout && Object.values(initial.scout).some(Boolean)
   );
   const [draftRestored, setDraftRestored] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const setCoords = (lat: number, lng: number) => setV((p) => ({ ...p, lat, lng }));
+  const clearCoords = () => { setV((p) => ({ ...p, lat: null, lng: null })); setGeoMsg(null); };
+
+  // 住所/場所名からピンの初期位置を検索(あくまで候補。ズレたら地図で直せる)
+  const searchByText = async () => {
+    const q = (v.address.trim() || v.name.trim());
+    if (!q) { setGeoMsg("先に住所か場所の名前を入力してください"); return; }
+    setGeoBusy(true);
+    setGeoMsg(null);
+    try {
+      const g = await geocodePlace(q, { jpOnly });
+      if (g) { setCoords(+g.lat.toFixed(6), +g.lon.toFixed(6)); setGeoMsg("📍 候補の位置に置きました。ズレていれば地図で動かせます"); }
+      else setGeoMsg("住所から位置を特定できませんでした。地図をタップしてピンを置いてください");
+    } finally {
+      setGeoBusy(false);
+    }
+  };
 
   // 下書き復元通知
   useEffect(() => {
@@ -168,7 +200,7 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 14,
           background: "var(--paper-raise)", border: "1px solid var(--hairline)", fontSize: 12, color: "var(--ink-soft)" }}>
           <span>📝 下書きを復元しました</span>
-          <button onClick={() => { clearDraft(); setV({ name: "", address: "", taken_at: "", body: "", youtube_url: "", photos: [], visibility: "private", scout: {}, pref_code: null }); }}
+          <button onClick={() => { clearDraft(); setV({ name: "", address: "", taken_at: "", body: "", youtube_url: "", photos: [], visibility: "private", scout: {}, pref_code: null, lat: null, lng: null }); }}
             style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--ink-faint)", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textUnderlineOffset: 3 }}>
             下書きを削除
           </button>
@@ -213,6 +245,35 @@ export default function RecordForm({ title, initial, existing, prefSelectable, b
       )}
       <input style={inputStyle} placeholder="住所・場所名(例: 東京駅 / 横浜市金沢区 八景島) — 地図の位置判定に使います" value={v.address}
         onChange={(e) => setV((p) => ({ ...p, address: e.target.value }))} />
+
+      {/* 地図で位置を指定(手動ピン) */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          <div className="caption" style={{ fontSize: 9, margin: 0 }}>地図で位置を指定</div>
+          <button type="button" onClick={searchByText} disabled={geoBusy}
+            style={{ padding: "5px 11px", fontSize: 11.5, fontFamily: "inherit", cursor: geoBusy ? "default" : "pointer",
+              border: "1px solid var(--hairline)", background: "transparent", color: "var(--ink-soft)", letterSpacing: "0.04em", minHeight: 0, opacity: geoBusy ? 0.6 : 1 }}>
+            {geoBusy ? "検索中…" : "住所/名前で検索"}
+          </button>
+          <span style={{ fontSize: 11, color: v.lat != null ? "var(--shu)" : "var(--ink-faint)", letterSpacing: "0.04em" }}>
+            {v.lat != null ? "ピン設置済み" : "未設定"}
+          </span>
+          {v.lat != null && (
+            <button type="button" onClick={clearCoords}
+              style={{ background: "none", border: "none", color: "var(--ink-faint)", fontSize: 11, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textUnderlineOffset: 3, padding: 2 }}>
+              クリア
+            </button>
+          )}
+        </div>
+        <LocationPicker lat={v.lat ?? null} lng={v.lng ?? null} onChange={setCoords} />
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 5, lineHeight: 1.7 }}>
+          地図を<b>タップ</b>でピンを設置・<b>ドラッグ</b>で微調整できます。住所で出ない場所もこれで確実に地図へ載ります。
+        </div>
+        {geoMsg && (
+          <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 5, lineHeight: 1.6 }}>{geoMsg}</div>
+        )}
+      </div>
+
       <input style={inputStyle} type="date" value={v.taken_at}
         onChange={(e) => setV((p) => ({ ...p, taken_at: e.target.value }))} />
       <textarea style={{ ...inputStyle, resize: "vertical", lineHeight: 1.9 }} rows={5}

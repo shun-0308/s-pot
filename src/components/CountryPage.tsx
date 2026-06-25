@@ -87,6 +87,7 @@ export default function CountryPage({
         {adding ? (
           <div style={{ marginTop: 22 }}>
             <RecordForm title={`${country.name}の記録`} initial={formInitial} busy={busy}
+              jpOnly={false}
               onSubmit={onCreate} onCancel={onCancelAdd} />
           </div>
         ) : (

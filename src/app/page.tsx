@@ -167,7 +167,7 @@ export default function Home() {
     }
     if (meta.lat && meta.lon) {
       const c = countryFromGPS(meta.lon, meta.lat);
-      const init = { taken_at: exifDateToISO(meta.date) ?? "", photos: files };
+      const init = { taken_at: exifDateToISO(meta.date) ?? "", photos: files, lat: meta.lat, lng: meta.lon };
       if (c?.code === JAPAN_CODE) {
         const p = prefFromGPS(meta.lon, meta.lat);
         if (p) {
@@ -190,6 +190,26 @@ export default function Home() {
     setAutoMsg("この写真には位置情報がありませんでした(スクショやアプリ経由の保存はGPSが消えます)。国・県をえらんで手動で記録できます。");
   };
 
+  // 住所/場所名 → 座標。都道府県名の二重付与を避けつつ複数パターンで試す。
+  const geocodeForRecord = async (
+    addr: string, name: string, suffix: string, isJP: boolean
+  ): Promise<{ lat: number; lng: number } | null> => {
+    const tries: string[] = [];
+    if (addr) {
+      tries.push(addr); // まず住所そのまま(都道府県を含む完全な住所はこれが最良)
+      if (suffix && !addr.includes(suffix)) tries.push(`${addr} ${suffix}`);
+    }
+    if (name) {
+      if (suffix && !name.includes(suffix)) tries.push(`${name} ${suffix}`);
+      tries.push(name);
+    }
+    for (const q of tries) {
+      const g = await geocodePlace(q, { jpOnly: isJP });
+      if (g) return { lat: g.lat, lng: g.lon };
+    }
+    return null;
+  };
+
   // ── CRUD ──
   const handleCreate = async (v: FormValues) => {
     const isJP = view === "japan" && pref != null;
@@ -203,21 +223,12 @@ export default function Home() {
       const prevCount = records.filter((r) =>
         isJP ? r.pref_code === pref!.id && r.country_code === JAPAN_CODE : r.country_code === code
       ).length;
-      // 写真にGPSが無ければ、住所→スポット名の順で座標を補完
-      let coords: { lat: number; lng: number } | null = gps;
+      // 座標の優先順: ① 手動ピン(フォーム) → ② 写真のGPS → ③ 住所/名前のジオコーディング
       const placeSuffix = isJP ? pref!.name : country!.name;
+      let coords: { lat: number; lng: number } | null =
+        v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : gps;
       if (!coords) {
-        // ① 住所で試みる
-        const addrQ = v.address.trim();
-        if (addrQ) {
-          const g = await geocodePlace(`${addrQ} ${placeSuffix}`, { jpOnly: isJP });
-          if (g) coords = { lat: g.lat, lng: g.lon };
-        }
-        // ② 失敗またはアドレス無しならスポット名でフォールバック
-        if (!coords && v.name.trim()) {
-          const g = await geocodePlace(`${v.name.trim()} ${placeSuffix}`, { jpOnly: isJP });
-          if (g) coords = { lat: g.lat, lng: g.lon };
-        }
+        coords = await geocodeForRecord(v.address.trim(), v.name.trim(), placeSuffix, isJP);
       }
       await createRecord(
         {
@@ -257,17 +268,18 @@ export default function Home() {
       const prefChanged = newPref !== rec.pref_code;
       const addr = v.address.trim();
       const addrChanged = addr !== (rec.address ?? "").trim();
-      // 県も住所も変えていなくて座標が既にあればそのまま。なければ住所(or名前)から補完。
+      // 座標の優先順: ① 手動ピン(フォーム) → ② 変更が無ければ既存座標を維持 → ③ 住所/名前から補完
+      const manual = v.lat != null && v.lng != null;
       let coords: { lat: number; lng: number } | null =
-        !prefChanged && !addrChanged && rec.lat != null && rec.lng != null
-          ? { lat: rec.lat, lng: rec.lng } : null;
+        manual ? { lat: v.lat!, lng: v.lng! }
+          : !prefChanged && !addrChanged && rec.lat != null && rec.lng != null
+            ? { lat: rec.lat, lng: rec.lng } : null;
       const geoQuery = (addr || v.name).trim();
       const needGeo = !coords && !!geoQuery;
       if (needGeo) {
         const prefName = isJP ? prefByCode(newPref ?? 0)?.name ?? "" : "";
-        const country = !isJP ? countryByCode(rec.country_code)?.name ?? "" : "";
-        const g = await geocodePlace(`${geoQuery} ${isJP ? prefName : country}`, { jpOnly: isJP });
-        if (g) coords = { lat: g.lat, lng: g.lon };
+        const countryName = !isJP ? countryByCode(rec.country_code)?.name ?? "" : "";
+        coords = await geocodeForRecord(addr, v.name, isJP ? prefName : countryName, isJP);
       }
       await updateRecord(rec.id, {
         name: v.name,

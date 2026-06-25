@@ -85,9 +85,10 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
           <div style={{ background: "var(--paper)", padding: "20px 18px" }}>
             <RecordForm
               title="記録を編集"
-              initial={{ name: rec.name, address: rec.address ?? "", taken_at: rec.taken_at ?? "", body: rec.body ?? "", youtube_url: rec.youtube_url ?? "", visibility: rec.visibility, scout: rec.scout ?? {}, pref_code: rec.pref_code }}
+              initial={{ name: rec.name, address: rec.address ?? "", taken_at: rec.taken_at ?? "", body: rec.body ?? "", youtube_url: rec.youtube_url ?? "", visibility: rec.visibility, scout: rec.scout ?? {}, pref_code: rec.pref_code, lat: rec.lat, lng: rec.lng }}
               existing={rec}
               prefSelectable={rec.country_code === "392"}
+              jpOnly={rec.country_code === "392"}
               busy={busy}
               onSubmit={(v) => { onUpdate(rec, v); setEditing(false); }}
               onCancel={() => setEditing(false)}
