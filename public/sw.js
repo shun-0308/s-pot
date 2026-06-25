@@ -1,6 +1,8 @@
 // S-pot 最小サービスワーカー: アプリの殻をキャッシュしてオフラインでも開けるように。
 // 外部(Supabase/署名付き写真URL/Nominatim)はキャッシュせず素通し。
-const CACHE = "s-pot-v1";
+// ※ デプロイで中身を更新したいときは、この CACHE の版番号(v2→v3...)を上げると
+//   旧キャッシュが破棄され、利用者の画面が確実に新しくなる。
+const CACHE = "s-pot-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {

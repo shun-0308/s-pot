@@ -301,7 +301,7 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
       {v.visibility !== "private" && (
         <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 12, lineHeight: 1.7,
           padding: "10px 12px", border: "1px solid var(--hairline)", background: "var(--paper-raise)" }}>
-          <div style={{ marginBottom: 6 }}>※ 公開時もGPS座標は共有されません（県までの表示）</div>
+          <div style={{ marginBottom: 6 }}>※ 公開すると、この地図ピンの場所がみんなの図鑑の地図に表示されます。自宅など知られたくない場所は、ピンを少しずらすか「自分だけ」にしてください。</div>
           <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--ink-soft)" }}>投稿ガイドライン</div>
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
             {[
