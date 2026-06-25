@@ -100,6 +100,16 @@ Next.js（App Router / TypeScript）+ Supabase + Stripe決済。Vercelで `https
 - みんなの図鑑のマップはピン座標をそのまま表示する。`RecordForm` の注記も
   「公開するとこのピンの場所が地図に出る／嫌ならピンをずらすか自分だけに」と実態に合わせて修正済み。
 
+## プロフィール投稿のチェキ表示・つながり（2026-06-25）
+- 公開プロフィール（`UserProfileModal`）下部の投稿は、`.cheki`クラスの**チェキ風カード**（画鋲＋傾き）
+  を2カラムで表示。ダーク地に白い instant photo が並ぶ世界観。
+- サイドメニュー（`SideMenu`）に **CONNECTIONS — つながり** セクションを追加。
+  フォロー/フォロワーの件数と一覧（顔写真＋名前）を表示し、タップで `UserProfileModal` を開く。
+  一覧は `fetchFollowing()` / `fetchFollowers()`（`src/lib/follows.ts`）。
+- 他ユーザーのプロフィールはメニューからも開けるよう、`page.tsx` に `profileUser` state を追加し
+  `overlays` で `UserProfileModal` を描画。`SideMenu` の `onOpenUser` で起動。
+- `ProfileSettings` のプラン（SUBSCRIPTION）欄は**一番下**へ移動。
+
 ## メモの運用
 
 何か決まった事・直した事があれば、このファイルに追記していくと次回スムーズです。

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { followUser, unfollowUser, isFollowing, getFollowerCount } from "@/lib/follows";
 import { avatarUrl } from "@/lib/profiles";
+import { captionOf } from "@/lib/prefectures";
 import Photo from "./Photo";
 import type { RecordWithPhotos } from "@/lib/records";
 
@@ -235,17 +236,28 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
         ) : records.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: "var(--dark-faint)", fontSize: 12 }}>公開されている記録はありません</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
-            {records.map((r) => (
-              <div
-                key={r.id}
-                onClick={() => { onSelectSpot?.(r); onClose(); }}
-                role="button"
-                style={{ aspectRatio: "1", overflow: "hidden", cursor: onSelectSpot ? "pointer" : "default", position: "relative" }}
-              >
-                <Photo rec={r} w="100%" h={120} />
-              </div>
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, padding: "4px 2px 8px" }}>
+            {records.map((r, i) => {
+              const tilt = ((parseInt(r.id.replace(/\D/g, "").slice(-2) || "0", 10) % 5) - 2) + (i % 2 ? 0.5 : -0.5);
+              return (
+                <div
+                  key={r.id}
+                  className="cheki entry"
+                  onClick={() => { onSelectSpot?.(r); onClose(); }}
+                  role="button"
+                  style={{ width: "100%", transform: `rotate(${tilt}deg)`, cursor: onSelectSpot ? "pointer" : "default" }}
+                >
+                  <span className="pin" />
+                  <Photo rec={r} w="100%" h={118} />
+                  <div style={{ fontSize: 8.5, letterSpacing: "0.12em", color: "var(--tsuchi)", marginTop: 8 }}>
+                    {captionOf(r.pref_code, r.taken_at)}
+                  </div>
+                  <div className="hand-jp" style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1, lineHeight: 1.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {r.name}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

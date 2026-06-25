@@ -9,6 +9,7 @@ import CountryPage from "@/components/CountryPage";
 import SpotDetail from "@/components/SpotDetail";
 import SharedFeed from "@/components/SharedFeed";
 import ProfileSettings from "@/components/ProfileSettings";
+import UserProfileModal from "@/components/UserProfileModal";
 import SearchPage from "@/components/SearchPage";
 import { useAccess, Splash, InviteScreen, MembersOnlyScreen } from "@/components/AccessGate";
 import PlaceSearch from "@/components/PlaceSearch";
@@ -53,6 +54,7 @@ export default function Home() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoriteRecords, setFavoriteRecords] = useState<RecordWithPhotos[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileUser, setProfileUser] = useState<{ userId: string; displayName: string | null } | null>(null);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
   const [pendingPref, setPendingPref] = useState<number | null>(null);
   const autoRef = useRef<HTMLInputElement>(null);
@@ -347,6 +349,14 @@ export default function Home() {
   const overlays = (
     <>
       {profileOpen && <ProfileSettings onClose={() => setProfileOpen(false)} />}
+      {profileUser && (
+        <UserProfileModal
+          userId={profileUser.userId}
+          displayName={profileUser.displayName}
+          onClose={() => setProfileUser(null)}
+          onSelectSpot={(r) => { setProfileUser(null); setView("log"); setSpot(r); }}
+        />
+      )}
       {stamp && (
         <StampCelebration prefName={stamp.pref} no={stamp.no} first={stamp.first}
           onDone={() => setStamp(null)} />
@@ -366,6 +376,7 @@ export default function Home() {
         onCountry={navToCountry}
         onPref={navToPref}
         onSelectSpot={(r) => { setMenuOpen(false); setView("log"); setSpot(r); }}
+        onOpenUser={(u) => { setMenuOpen(false); setProfileUser(u); }}
       />
     </>
   );

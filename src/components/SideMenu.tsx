@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { countryByCode, JAPAN_CODE } from "@/lib/world";
 import { PREFECTURES } from "@/lib/prefectures";
 import type { RecordWithPhotos } from "@/lib/records";
+import { fetchFollowing, fetchFollowers, type FollowUser } from "@/lib/follows";
+import { avatarUrl } from "@/lib/profiles";
 
 type Props = {
   open: boolean;
@@ -20,6 +22,7 @@ type Props = {
   onCountry: (code: string) => void; // 地球ズーム経由で国へ
   onPref: (id: number) => void; // 地球→日本ズーム経由で県へ
   onSelectSpot: (r: RecordWithPhotos) => void;
+  onOpenUser: (u: { userId: string; displayName: string | null }) => void; // 他ユーザーのプロフィールを開く
 };
 
 const REGIONS = [
@@ -41,11 +44,21 @@ const itemStyle: React.CSSProperties = {
 export default function SideMenu({
   open, onClose, countryCounts, prefCounts,
   favoriteRecords, onGlobe, onLog, onSearch, onShared,
-  onProfile, onLogout, onCountry, onPref, onSelectSpot,
+  onProfile, onLogout, onCountry, onPref, onSelectSpot, onOpenUser,
 }: Props) {
   const [openRegion, setOpenRegion] = useState<number | null>(null);
   const [favOpen, setFavOpen] = useState(false);
   const [openFavPref, setOpenFavPref] = useState<number | null>(null);
+  const [following, setFollowing] = useState<FollowUser[] | null>(null);
+  const [followers, setFollowers] = useState<FollowUser[] | null>(null);
+  const [connTab, setConnTab] = useState<"following" | "followers" | null>(null);
+
+  // メニューを開いたタイミングでフォロー/フォロワーを取得
+  useEffect(() => {
+    if (!open) return;
+    fetchFollowing().then(setFollowing).catch(() => setFollowing([]));
+    fetchFollowers().then(setFollowers).catch(() => setFollowers([]));
+  }, [open]);
 
   // お気に入りレコードを都道府県別にグルーピング
   const favRecords = favoriteRecords;
@@ -75,6 +88,34 @@ export default function SideMenu({
   const Cap = ({ children }: { children: React.ReactNode }) => (
     <div className="caption" style={{ color: "#6B6557", margin: "22px 0 4px", fontSize: 9.5 }}>{children}</div>
   );
+
+  const UserList = ({ users }: { users: FollowUser[] | null }) => {
+    if (users === null) return <div style={{ fontSize: 11.5, color: "#5C574B", padding: "6px 4px" }}>読み込み中…</div>;
+    if (users.length === 0) return <div style={{ fontSize: 11.5, color: "#5C574B", padding: "6px 4px" }}>まだいません</div>;
+    return (
+      <div style={{ borderLeft: "1px solid rgba(237,232,220,0.14)", marginLeft: 3, paddingLeft: 12, marginBottom: 6 }}>
+        {users.map((u) => {
+          const url = avatarUrl(u.avatar_path);
+          return (
+            <button key={u.id} style={{ ...itemStyle, padding: "7px 4px", fontSize: 12.5, color: "#C9C2B2" }}
+              onClick={() => { onClose(); onOpenUser({ userId: u.id, displayName: u.display_name }); }}>
+              <span style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, overflow: "hidden",
+                background: "#3a3630", display: "flex", alignItems: "center", justifyContent: "center",
+                border: "1px solid rgba(201,168,106,0.5)" }}>
+                {url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: 11, color: "#E3C58C", fontFamily: "serif" }}>{u.display_name ? u.display_name.charAt(0) : "?"}</span>
+                )}
+              </span>
+              {u.display_name ?? "名無し"}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -114,6 +155,22 @@ export default function SideMenu({
         <button style={itemStyle} onClick={onSearch}>記録をさがす</button>
         <button style={itemStyle} onClick={onLog}>ログ一覧</button>
         <button style={itemStyle} onClick={onShared}>みんなの図鑑</button>
+
+        <Cap>CONNECTIONS — つながり</Cap>
+        <button style={itemStyle} onClick={() => setConnTab(connTab === "following" ? null : "following")}>
+          フォロー
+          <span style={{ marginLeft: "auto", fontSize: 11, color: "#857E70", letterSpacing: "0.1em" }}>
+            {following?.length ?? "—"} {connTab === "following" ? "−" : "+"}
+          </span>
+        </button>
+        {connTab === "following" && <UserList users={following} />}
+        <button style={itemStyle} onClick={() => setConnTab(connTab === "followers" ? null : "followers")}>
+          フォロワー
+          <span style={{ marginLeft: "auto", fontSize: 11, color: "#857E70", letterSpacing: "0.1em" }}>
+            {followers?.length ?? "—"} {connTab === "followers" ? "−" : "+"}
+          </span>
+        </button>
+        {connTab === "followers" && <UserList users={followers} />}
 
         <Cap>COUNTRIES — 国別</Cap>
         {visitedCountries.length === 0 && (

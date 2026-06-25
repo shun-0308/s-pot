@@ -53,3 +53,36 @@ export async function fetchFollowingIds(): Promise<Set<string>> {
     .eq("follower_id", user.id);
   return new Set((data ?? []).map((r: { following_id: string }) => r.following_id));
 }
+
+export type FollowUser = { id: string; display_name: string | null; avatar_path: string | null };
+
+async function profilesByIds(ids: string[]): Promise<FollowUser[]> {
+  if (!ids.length) return [];
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_path")
+    .in("id", ids);
+  // idの並びを維持
+  const map = new Map((data ?? []).map((p) => [p.id, p as FollowUser]));
+  return ids.map((id) => map.get(id)).filter((p): p is FollowUser => !!p);
+}
+
+/** 自分がフォローしている人（プロフィール付き） */
+export async function fetchFollowing(): Promise<FollowUser[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase
+    .from("follows").select("following_id").eq("follower_id", user.id)
+    .order("created_at", { ascending: false });
+  return profilesByIds((data ?? []).map((r: { following_id: string }) => r.following_id));
+}
+
+/** 自分をフォローしている人（プロフィール付き） */
+export async function fetchFollowers(): Promise<FollowUser[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase
+    .from("follows").select("follower_id").eq("following_id", user.id)
+    .order("created_at", { ascending: false });
+  return profilesByIds((data ?? []).map((r: { follower_id: string }) => r.follower_id));
+}
