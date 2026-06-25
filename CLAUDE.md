@@ -70,6 +70,8 @@ Next.js（App Router / TypeScript）+ Supabase + Stripe決済。Vercelで `https
 - みんなの図鑑（`SharedFeed`）の投稿者アイコンも、顔写真があれば金リングで表示。
   `fetchSharedRecords()` が `avatar_path` も返す。
 - 注意: `avatars` は**公開バケット**（URLを知れば誰でも閲覧可）。顔写真を公開する前提の仕様。
+- 顔写真は選択後に **`AvatarCropper`**（丸マスク・ドラッグで位置合わせ＋スライダー拡大）で
+  位置を調整 → 512px正方形に切り抜いて保存。`uploadAvatar()` は切り抜き済みBlobを受け取る。
 
 ## 位置情報・手動ピン（2026-06-25 実装）
 
@@ -80,6 +82,14 @@ Next.js（App Router / TypeScript）+ Supabase + Stripe決済。Vercelで `https
   ドラッグで微調整。「住所/名前で検索」で候補位置に置いてから直せる。
 - ジオコーディングは `page.tsx` の `geocodeForRecord()` に集約。**都道府県名の二重付与を回避**
   （住所そのまま→住所+県→名前+県→名前 の順で試行）。
+
+### 住所・場所検索（候補リスト方式・2026-06-25）
+- `RecordForm` の「住所/名前で検索」は、複数候補を一覧表示して**タップで選んでピン設置**
+  （Googleマップの検索窓に近いUX）。山名でも候補が出る。
+- ジオコーダは `src/app/api/geocode/route.ts` に集約。優先順位:
+  **① `GOOGLE_MAPS_API_KEY` があればGoogle Places Text Search → ② Photon(OSM・名前検索に強い) → ③ Nominatim**。
+  Googleに上げたいときは Vercel の環境変数に `GOOGLE_MAPS_API_KEY` を入れるだけで自動切替。
+- フロントは `geocodeCandidates()`（複数候補）/ `geocodePlace()`（単一・自動補完用）。
 
 ### なぜ前は地図に出なかったか
 - Nominatim(無料地図)は日本の字(あざ)レベルの住所データが無いことが多く、正しい住所でも空振りする。

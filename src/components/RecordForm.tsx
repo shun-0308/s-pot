@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import type { RecordWithPhotos } from "@/lib/records";
 import type { Visibility, ScoutInfo } from "@/lib/supabase";
 import { PREFECTURES } from "@/lib/prefectures";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodeCandidates, type GeoCandidate } from "@/lib/geocode";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ssr: false,
@@ -68,6 +68,20 @@ const inputStyle = {
   color: "var(--ink)",
 };
 
+// 各入力欄の見出し(編集時に「どの欄か」を分かりやすくする)
+const fieldLabel: React.CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.12em",
+  color: "var(--ink-soft)",
+  fontWeight: 600,
+  margin: "2px 0 5px",
+};
+const Lbl = ({ children, req }: { children: React.ReactNode; req?: boolean }) => (
+  <div style={fieldLabel}>
+    {children}{req && <span style={{ color: "var(--shu)" }}> *</span>}
+  </div>
+);
+
 export default function RecordForm({ title, initial, existing, prefSelectable, jpOnly = true, busy, onSubmit, onCancel }: Props) {
   const isEdit = !!existing;
   const [v, setV] = useState<FormValues>(() => {
@@ -101,21 +115,31 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
   const [draftRestored, setDraftRestored] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const setCoords = (lat: number, lng: number) => setV((p) => ({ ...p, lat, lng }));
-  const clearCoords = () => { setV((p) => ({ ...p, lat: null, lng: null })); setGeoMsg(null); };
+  const clearCoords = () => { setV((p) => ({ ...p, lat: null, lng: null })); setGeoMsg(null); setCandidates([]); };
 
-  // 住所/場所名からピンの初期位置を検索(あくまで候補。ズレたら地図で直せる)
+  // 候補を選ぶ → ピン設置
+  const pickCandidate = (c: GeoCandidate) => {
+    setCoords(+c.lat.toFixed(6), +c.lon.toFixed(6));
+    setCandidates([]);
+    setGeoMsg("📍 ピンを置きました。ズレていれば地図でドラッグして微調整できます");
+  };
+
+  // 住所/場所名で検索 → 候補を一覧表示(Googleマップの検索窓のように選べる)
   const searchByText = async () => {
     const q = (v.address.trim() || v.name.trim());
     if (!q) { setGeoMsg("先に住所か場所の名前を入力してください"); return; }
     setGeoBusy(true);
     setGeoMsg(null);
+    setCandidates([]);
     try {
-      const g = await geocodePlace(q, { jpOnly });
-      if (g) { setCoords(+g.lat.toFixed(6), +g.lon.toFixed(6)); setGeoMsg("📍 候補の位置に置きました。ズレていれば地図で動かせます"); }
-      else setGeoMsg("住所から位置を特定できませんでした。地図をタップしてピンを置いてください");
+      const list = await geocodeCandidates(q, { jpOnly });
+      if (list.length === 0) setGeoMsg("見つかりませんでした。地図をタップしてピンを置いてください");
+      else if (list.length === 1) pickCandidate(list[0]);
+      else { setCandidates(list); setGeoMsg("候補から選んでください（タップでピン設置）"); }
     } finally {
       setGeoBusy(false);
     }
@@ -192,7 +216,7 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
 
   return (
     <div className="card" style={{ borderTop: "1px solid var(--ink)", paddingTop: 18, marginTop: 6 }}>
-      <div className="caption" style={{ marginBottom: 4 }}>NEW ENTRY</div>
+      <div className="caption" style={{ marginBottom: 4 }}>{isEdit ? "EDIT RECORD" : "NEW ENTRY"}</div>
       <div className="tz-serif" style={{ fontWeight: 700, fontSize: 17, marginBottom: 14 }}>{title}</div>
 
       {/* 下書き復元通知 */}
@@ -208,6 +232,9 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
       )}
 
       {/* 既存写真(編集時)。差し替えではなく追加なので残して表示 */}
+      {existingPhotos && existingPhotos.length > 0 && (
+        <Lbl>登録済みの写真</Lbl>
+      )}
       {existingPhotos && existingPhotos.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 6, marginBottom: 10 }}>
           {existingPhotos.map((u, i) => (
@@ -233,17 +260,22 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
         </div>
       )}
 
-      <input style={inputStyle} placeholder="場所の名前(例: 尾道・千光寺)" value={v.name}
+      <Lbl req>場所の名前</Lbl>
+      <input style={inputStyle} placeholder="例: 尾道・千光寺" value={v.name}
         onChange={(e) => setV((p) => ({ ...p, name: e.target.value }))} />
       {prefSelectable && (
-        <select style={{ ...inputStyle, appearance: "auto" }} value={v.pref_code ?? ""}
-          onChange={(e) => setV((p) => ({ ...p, pref_code: e.target.value ? Number(e.target.value) : null }))}>
-          {PREFECTURES.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        <>
+          <Lbl>都道府県</Lbl>
+          <select style={{ ...inputStyle, appearance: "auto" }} value={v.pref_code ?? ""}
+            onChange={(e) => setV((p) => ({ ...p, pref_code: e.target.value ? Number(e.target.value) : null }))}>
+            {PREFECTURES.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </>
       )}
-      <input style={inputStyle} placeholder="住所・場所名(例: 東京駅 / 横浜市金沢区 八景島) — 地図の位置判定に使います" value={v.address}
+      <Lbl>住所・場所名</Lbl>
+      <input style={inputStyle} placeholder="例: 東京駅 / 横浜市金沢区 八景島 — 地図の位置判定に使います" value={v.address}
         onChange={(e) => setV((p) => ({ ...p, address: e.target.value }))} />
 
       {/* 地図で位置を指定(手動ピン) */}
@@ -265,6 +297,18 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
             </button>
           )}
         </div>
+        {candidates.length > 0 && (
+          <div style={{ border: "1px solid var(--hairline)", marginBottom: 8, maxHeight: 184, overflowY: "auto", background: "var(--paper-raise)" }}>
+            {candidates.map((c, i) => (
+              <button key={i} type="button" onClick={() => pickCandidate(c)}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none",
+                  borderTop: i ? "1px solid var(--hairline)" : "none", background: "transparent", cursor: "pointer",
+                  fontFamily: "inherit", fontSize: 12.5, color: "var(--ink)", lineHeight: 1.5 }}>
+                <span style={{ color: "var(--shu)", marginRight: 6 }}>📍</span>{c.label}
+              </button>
+            ))}
+          </div>
+        )}
         <LocationPicker lat={v.lat ?? null} lng={v.lng ?? null} onChange={setCoords} />
         <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 5, lineHeight: 1.7 }}>
           地図を<b>タップ</b>でピンを設置・<b>ドラッグ</b>で微調整できます。住所で出ない場所もこれで確実に地図へ載ります。
@@ -274,16 +318,20 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
         )}
       </div>
 
+      <Lbl>撮影日</Lbl>
       <input style={inputStyle} type="date" value={v.taken_at}
         onChange={(e) => setV((p) => ({ ...p, taken_at: e.target.value }))} />
+      <Lbl>記録文</Lbl>
       <textarea style={{ ...inputStyle, resize: "vertical", lineHeight: 1.9 }} rows={5}
-        placeholder="記録文 — その日の光、音、気づいたこと…" value={v.body}
+        placeholder="その日の光、音、気づいたこと…" value={v.body}
         onChange={(e) => setV((p) => ({ ...p, body: e.target.value }))} />
+      <Lbl>動画・リンク（任意）</Lbl>
       <input style={inputStyle} type="url" inputMode="url"
-        placeholder="動画・リンクのURL(任意・YouTubeは埋め込み再生／Instagram等はリンク表示)" value={v.youtube_url}
+        placeholder="URL（YouTubeは埋め込み再生／Instagram等はリンク表示）" value={v.youtube_url}
         onChange={(e) => setV((p) => ({ ...p, youtube_url: e.target.value }))} />
 
       {/* 公開範囲(デフォルトは自分だけ) */}
+      <Lbl>公開範囲</Lbl>
       <div style={{ display: "flex", gap: 0, marginBottom: 10, border: "1px solid var(--hairline)" }}>
         {(Object.keys(VISIBILITY_LABEL) as Visibility[]).map((k, i) => (
           <button key={k} onClick={() => setV((p) => ({ ...p, visibility: k }))}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { avatarUrl, uploadAvatar } from "@/lib/profiles";
+import AvatarCropper from "./AvatarCropper";
 
 type Props = {
   onClose: () => void;
@@ -33,6 +34,7 @@ export default function ProfileSettings({ onClose }: Props) {
   const [portalBusy, setPortalBusy] = useState(false);
   const [hasStripe, setHasStripe] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,17 +64,22 @@ export default function ProfileSettings({ onClose }: Props) {
   const set = (k: keyof ProfileForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const dirty = (Object.keys(form) as (keyof ProfileForm)[]).some((k) => form[k].trim() !== original[k].trim());
 
-  const pickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 写真を選んだら、まず切り抜きエディタを開く
+  const pickAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
-    // 即時プレビュー
-    const localUrl = URL.createObjectURL(file);
-    setAvatar(localUrl);
+    if (file) { setMsg(null); setCropFile(file); }
+  };
+
+  // 切り抜き確定 → アップロード
+  const handleCropped = async (blob: Blob) => {
+    setCropFile(null);
+    const localUrl = URL.createObjectURL(blob);
+    setAvatar(localUrl); // 即時プレビュー
     setAvatarBusy(true);
     setMsg(null);
     try {
-      const path = await uploadAvatar(file);
+      const path = await uploadAvatar(blob);
       setAvatar(avatarUrl(path));
       setMsg({ type: "ok", text: "顔写真を更新しました" });
     } catch (err) {
@@ -215,17 +222,6 @@ export default function ProfileSettings({ onClose }: Props) {
             </button>
           </div>
 
-          {/* プラン管理(Stripe会員のみ) */}
-          {hasStripe && (
-            <div style={{ margin: "14px 0 4px", padding: "13px 15px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--hairline-dark)", borderRadius: 3 }}>
-              <div style={{ fontSize: 10, letterSpacing: "0.22em", color: GOLD, marginBottom: 8 }}>SUBSCRIPTION</div>
-              <button onClick={openPortal} disabled={portalBusy}
-                style={{ width: "100%", padding: "9px 0", border: "1px solid var(--hairline-dark)", background: "none", color: "var(--dark-body)", fontSize: 12.5, cursor: portalBusy ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.1em", borderRadius: 2, opacity: portalBusy ? 0.6 : 1 }}>
-                {portalBusy ? "読み込み中…" : "プラン・お支払いを管理"}
-              </button>
-            </div>
-          )}
-
           {/* 表示名 */}
           <label style={labelStyle}>表示名 *</label>
           <input value={form.display_name} onChange={(e) => set("display_name", e.target.value)}
@@ -258,6 +254,20 @@ export default function ProfileSettings({ onClose }: Props) {
           <input value={form.website} onChange={(e) => set("website", e.target.value)}
             maxLength={120} placeholder="例: https://your-site.com" style={inputStyle} />
 
+          {/* プラン管理(Stripe会員のみ・一番下) */}
+          {hasStripe && (
+            <div style={{ margin: "26px 0 4px", padding: "13px 15px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--hairline-dark)", borderRadius: 3 }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.22em", color: GOLD, marginBottom: 8 }}>SUBSCRIPTION — プラン</div>
+              <button onClick={openPortal} disabled={portalBusy}
+                style={{ width: "100%", padding: "9px 0", border: "1px solid var(--hairline-dark)", background: "none", color: "var(--dark-body)", fontSize: 12.5, cursor: portalBusy ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.1em", borderRadius: 2, opacity: portalBusy ? 0.6 : 1 }}>
+                {portalBusy ? "読み込み中…" : "プラン・お支払いを管理"}
+              </button>
+              <div style={{ fontSize: 10.5, color: "var(--dark-faint)", marginTop: 7, lineHeight: 1.6 }}>
+                カード変更・解約はこちら（Stripeのページへ移動します）
+              </div>
+            </div>
+          )}
+
           {msg && (
             <div style={{
               marginTop: 16, padding: "9px 13px", fontSize: 12.5, borderRadius: 2,
@@ -286,6 +296,10 @@ export default function ProfileSettings({ onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {cropFile && (
+        <AvatarCropper file={cropFile} onCancel={() => setCropFile(null)} onDone={handleCropped} />
+      )}
     </>
   );
 }
