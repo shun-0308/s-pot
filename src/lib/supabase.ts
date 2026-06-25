@@ -61,9 +61,10 @@ export type FavoriteRow = {
 export type ProfileRow = {
   id: string;
   display_name: string | null;
-  bio: string | null;        // 自己紹介
-  area: string | null;       // 拠点・活動エリア
-  instagram: string | null;  // Instagram(ID or URL)
-  website: string | null;    // サイト/その他リンク
-  gear: string | null;       // 使用機材
+  bio: string | null;          // 自己紹介
+  area: string | null;         // 拠点・活動エリア
+  instagram: string | null;    // Instagram(ID or URL)
+  website: string | null;      // サイト/その他リンク
+  gear: string | null;         // 使用機材
+  avatar_path: string | null;  // 顔写真(avatarsバケット内のパス)
 };

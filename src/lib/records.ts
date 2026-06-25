@@ -4,7 +4,7 @@ import { JAPAN_CODE } from "./world";
 import { prefByCode } from "./prefectures";
 
 export type PhotoWithUrl = RecordPhotoRow & { url: string | null };
-export type RecordWithPhotos = RecordRow & { photos: PhotoWithUrl[]; display_name?: string | null };
+export type RecordWithPhotos = RecordRow & { photos: PhotoWithUrl[]; display_name?: string | null; avatar_path?: string | null };
 
 // 署名付きURLを一括発行(バケットは非公開)
 async function attachUrls(records: RecordWithPhotos[]): Promise<RecordWithPhotos[]> {
@@ -51,10 +51,14 @@ export async function fetchSharedRecords(): Promise<RecordWithPhotos[]> {
   if (userIds.length) {
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, display_name")
+      .select("id, display_name, avatar_path")
       .in("id", userIds);
-    const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.display_name as string | null]));
-    for (const r of records) r.display_name = nameMap.get(r.user_id) ?? null;
+    const profMap = new Map((profiles ?? []).map((p) => [p.id, p as { display_name: string | null; avatar_path: string | null }]));
+    for (const r of records) {
+      const p = profMap.get(r.user_id);
+      r.display_name = p?.display_name ?? null;
+      r.avatar_path = p?.avatar_path ?? null;
+    }
   }
 
   return attachUrls(records);

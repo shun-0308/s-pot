@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { followUser, unfollowUser, isFollowing, getFollowerCount } from "@/lib/follows";
+import { avatarUrl } from "@/lib/profiles";
 import Photo from "./Photo";
 import type { RecordWithPhotos } from "@/lib/records";
 
@@ -19,7 +20,11 @@ type ProfileInfo = {
   instagram: string | null;
   website: string | null;
   gear: string | null;
+  avatar_path: string | null;
 };
+
+const GOLD = "#C9A86A";
+const GOLD_SOFT = "#E3C58C";
 
 // Instagram入力(@id でも URL でも)を開けるURLに正規化
 function instaUrl(v: string): string {
@@ -43,26 +48,19 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user?.id === userId) {
-        setIsSelf(true);
-      }
+      if (user?.id === userId) setIsSelf(true);
 
-      const [fwing, fwCount] = await Promise.all([
-        isFollowing(userId),
-        getFollowerCount(userId),
-      ]);
+      const [fwing, fwCount] = await Promise.all([isFollowing(userId), getFollowerCount(userId)]);
       setFollowing(fwing);
       setFollowerCount(fwCount);
 
-      // プロフィール詳細(自己紹介・拠点・SNS・機材)
       const { data: prof } = await supabase
         .from("profiles")
-        .select("bio, area, instagram, website, gear")
+        .select("bio, area, instagram, website, gear, avatar_path")
         .eq("id", userId)
         .single();
-      setProfile(prof ?? { bio: null, area: null, instagram: null, website: null, gear: null });
+      setProfile(prof ?? { bio: null, area: null, instagram: null, website: null, gear: null, avatar_path: null });
 
-      // 公開記録を取得
       const { data } = await supabase
         .from("records")
         .select("*, photos:record_photos(*)")
@@ -72,18 +70,11 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
         .limit(30);
 
       if (data && data.length > 0) {
-        const paths = (data as RecordWithPhotos[]).flatMap((r) =>
-          r.photos.map((p) => p.storage_path)
-        );
-        const { data: signed } = await supabase.storage
-          .from("photos")
-          .createSignedUrls(paths, 60 * 60);
-        const urlMap = new Map(
-          (signed ?? []).map((s) => [s.path, s.signedUrl] as const)
-        );
+        const paths = (data as RecordWithPhotos[]).flatMap((r) => r.photos.map((p) => p.storage_path));
+        const { data: signed } = await supabase.storage.from("photos").createSignedUrls(paths, 60 * 60);
+        const urlMap = new Map((signed ?? []).map((s) => [s.path, s.signedUrl] as const));
         const recs = data as RecordWithPhotos[];
-        for (const r of recs)
-          for (const p of r.photos) p.url = urlMap.get(p.storage_path) ?? null;
+        for (const r of recs) for (const p of r.photos) p.url = urlMap.get(p.storage_path) ?? null;
         setRecords(recs);
       } else {
         setRecords([]);
@@ -110,111 +101,122 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
     }
   };
 
+  const avatar = avatarUrl(profile?.avatar_path);
+  const hasDetails = !!(profile && (profile.bio || profile.area || profile.gear || profile.instagram || profile.website));
+
   return (
     <div
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 200,
-        background: "rgba(0,0,0,0.55)", display: "flex",
-        alignItems: "flex-end", justifyContent: "center",
+        background: "rgba(5,6,10,0.72)", backdropFilter: "blur(2px)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%", maxWidth: 480,
-          background: "var(--paper)",
+          background: "linear-gradient(180deg, #1A1D27 0%, #0F1117 100%)",
+          border: "1px solid rgba(201,168,106,0.22)", borderBottom: "none",
           borderRadius: "16px 16px 0 0",
-          maxHeight: "85vh", overflowY: "auto",
-          padding: "28px 20px 60px",
+          maxHeight: "88vh", overflowY: "auto",
+          padding: "26px 22px 60px",
+          boxShadow: "0 -20px 60px rgba(0,0,0,0.5)",
         }}
       >
+        {/* つまみ */}
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: "rgba(201,168,106,0.4)", margin: "0 auto 20px" }} />
+
         {/* ヘッダー */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {/* アバター */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+            {/* アバター(金リング) */}
             <div style={{
-              width: 52, height: 52, borderRadius: "50%",
-              background: "var(--shu)", display: "flex",
-              alignItems: "center", justifyContent: "center",
-              color: "var(--paper)", fontSize: 20, fontWeight: 700,
-              fontFamily: "serif", flexShrink: 0,
+              width: 66, height: 66, borderRadius: "50%", padding: 2.5, flexShrink: 0,
+              background: `conic-gradient(from 210deg, ${GOLD}, ${GOLD_SOFT}, #8C6E3F, ${GOLD})`,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
             }}>
-              {displayName ? displayName.charAt(0) : "?"}
+              <div style={{
+                width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden",
+                background: "#0E0F15", border: "2px solid #0E0F15",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatar} alt={displayName ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span className="tz-serif" style={{ fontSize: 24, fontWeight: 700, color: GOLD_SOFT }}>
+                    {displayName ? displayName.charAt(0) : "?"}
+                  </span>
+                )}
+              </div>
             </div>
             <div>
-              <div className="tz-serif" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "0.05em" }}>
+              <div className="tz-serif" style={{ fontSize: 19, fontWeight: 700, letterSpacing: "0.05em", color: "var(--dark-strong)" }}>
                 {displayName ?? "名無し"}
               </div>
-              <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 3, letterSpacing: "0.08em" }}>
+              <div style={{ fontSize: 11.5, color: GOLD, marginTop: 4, letterSpacing: "0.1em" }}>
                 フォロワー {followerCount ?? "–"} 人
               </div>
             </div>
           </div>
 
-          {/* フォローボタン / 閉じる */}
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {!isSelf && following !== null && (
               <button
                 onClick={toggleFollow}
                 disabled={busy}
                 style={{
-                  padding: "7px 18px",
-                  border: following ? "1px solid var(--hairline)" : "none",
-                  background: following ? "transparent" : "var(--shu)",
-                  color: following ? "var(--ink-mid)" : "var(--paper)",
-                  fontSize: 12, fontFamily: "inherit",
-                  letterSpacing: "0.08em", cursor: "pointer",
-                  opacity: busy ? 0.6 : 1,
-                  borderRadius: 2,
+                  padding: "8px 18px",
+                  border: following ? "1px solid var(--hairline-dark)" : "none",
+                  background: following ? "transparent" : `linear-gradient(180deg, ${GOLD_SOFT}, ${GOLD})`,
+                  color: following ? "var(--dark-body)" : "#1A1408",
+                  fontSize: 12, fontFamily: "inherit", fontWeight: following ? 400 : 700,
+                  letterSpacing: "0.08em", cursor: "pointer", opacity: busy ? 0.6 : 1, borderRadius: 2,
                 }}
               >
                 {following ? "フォロー中" : "フォローする"}
               </button>
             )}
-            <button
-              onClick={onClose}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: "var(--ink-faint)", fontSize: 20, lineHeight: 1, padding: 4,
-              }}
-            >
+            <button onClick={onClose}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--dark-faint)", fontSize: 22, lineHeight: 1, padding: 4 }}>
               ×
             </button>
           </div>
         </div>
 
         {/* プロフィール詳細 */}
-        {profile && (profile.bio || profile.area || profile.gear || profile.instagram || profile.website) && (
-          <div style={{ marginBottom: 22, paddingBottom: 18, borderBottom: "1px solid var(--hairline)" }}>
+        {hasDetails && profile && (
+          <div style={{ marginBottom: 22, paddingBottom: 18, borderBottom: "1px solid var(--hairline-dark)" }}>
             {profile.bio && (
-              <p style={{ fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.9, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>
+              <p style={{ fontSize: 13.5, color: "var(--dark-body)", lineHeight: 1.95, margin: "0 0 14px", whiteSpace: "pre-wrap" }}>
                 {profile.bio}
               </p>
             )}
             {profile.area && (
-              <div style={{ fontSize: 12.5, color: "var(--ink-mid)", marginTop: 4, display: "flex", gap: 8 }}>
-                <span style={{ color: "var(--ink-faint)", letterSpacing: "0.1em", flexShrink: 0 }}>拠点</span>
+              <div style={{ fontSize: 12.5, color: "var(--dark-body)", marginTop: 4, display: "flex", gap: 10 }}>
+                <span style={{ color: GOLD, letterSpacing: "0.18em", flexShrink: 0, fontSize: 10, paddingTop: 2 }}>拠点</span>
                 <span>{profile.area}</span>
               </div>
             )}
             {profile.gear && (
-              <div style={{ fontSize: 12.5, color: "var(--ink-mid)", marginTop: 6, display: "flex", gap: 8 }}>
-                <span style={{ color: "var(--ink-faint)", letterSpacing: "0.1em", flexShrink: 0 }}>機材</span>
+              <div style={{ fontSize: 12.5, color: "var(--dark-body)", marginTop: 7, display: "flex", gap: 10 }}>
+                <span style={{ color: GOLD, letterSpacing: "0.18em", flexShrink: 0, fontSize: 10, paddingTop: 2 }}>機材</span>
                 <span>{profile.gear}</span>
               </div>
             )}
             {(profile.instagram || profile.website) && (
-              <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 16, marginTop: 14, flexWrap: "wrap" }}>
                 {profile.instagram && (
                   <a href={instaUrl(profile.instagram)} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 12, color: "var(--shu)", textDecoration: "none", letterSpacing: "0.06em", borderBottom: "1px solid var(--shu)", paddingBottom: 2 }}>
+                    style={{ fontSize: 12, color: GOLD_SOFT, textDecoration: "none", letterSpacing: "0.06em", borderBottom: `1px solid rgba(201,168,106,0.5)`, paddingBottom: 2 }}>
                     Instagram ↗
                   </a>
                 )}
                 {profile.website && (
                   <a href={siteUrl(profile.website)} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 12, color: "var(--shu)", textDecoration: "none", letterSpacing: "0.06em", borderBottom: "1px solid var(--shu)", paddingBottom: 2 }}>
+                    style={{ fontSize: 12, color: GOLD_SOFT, textDecoration: "none", letterSpacing: "0.06em", borderBottom: `1px solid rgba(201,168,106,0.5)`, paddingBottom: 2 }}>
                     サイト ↗
                   </a>
                 )}
@@ -224,14 +226,14 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
         )}
 
         {/* 公開記録グリッド */}
-        <div className="caption" style={{ marginBottom: 10 }}>
-          公開の記録 {records !== null ? `— ${records.length} 件` : ""}
+        <div style={{ fontSize: 10, letterSpacing: "0.3em", color: GOLD, marginBottom: 12 }}>
+          PUBLISHED {records !== null ? `— ${records.length}` : ""}
         </div>
 
         {records === null ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--ink-faint)", fontSize: 12 }}>読み込み中…</div>
+          <div style={{ textAlign: "center", padding: 40, color: "var(--dark-faint)", fontSize: 12 }}>読み込み中…</div>
         ) : records.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--ink-faint)", fontSize: 12 }}>公開されている記録はありません</div>
+          <div style={{ textAlign: "center", padding: 40, color: "var(--dark-faint)", fontSize: 12 }}>公開されている記録はありません</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
             {records.map((r) => (
@@ -239,11 +241,7 @@ export default function UserProfileModal({ userId, displayName, onClose, onSelec
                 key={r.id}
                 onClick={() => { onSelectSpot?.(r); onClose(); }}
                 role="button"
-                style={{
-                  aspectRatio: "1", overflow: "hidden",
-                  cursor: onSelectSpot ? "pointer" : "default",
-                  position: "relative",
-                }}
+                style={{ aspectRatio: "1", overflow: "hidden", cursor: onSelectSpot ? "pointer" : "default", position: "relative" }}
               >
                 <Photo rec={r} w="100%" h={120} />
               </div>

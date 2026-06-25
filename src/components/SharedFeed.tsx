@@ -6,6 +6,7 @@ import Photo from "./Photo";
 import FavoriteButton from "./FavoriteButton";
 import UserProfileModal from "./UserProfileModal";
 import { fetchSharedRecords, type RecordWithPhotos } from "@/lib/records";
+import { avatarUrl } from "@/lib/profiles";
 import { captionOf } from "@/lib/prefectures";
 
 // SSR を完全に切る（Leaflet は SSR 不可、client mount 後に初期化する）
@@ -202,13 +203,22 @@ export default function SharedFeed({
                 style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
               >
                 <div style={{
-                  width: 28, height: 28, borderRadius: "50%",
-                  background: "var(--shu)", display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                  color: "var(--paper)", fontSize: 11, fontWeight: 700,
-                  fontFamily: "serif", flexShrink: 0,
+                  width: 30, height: 30, borderRadius: "50%", padding: 1.5, flexShrink: 0,
+                  background: "linear-gradient(135deg, #E3C58C, #C9A86A, #8C6E3F)",
                 }}>
-                  {r.display_name ? r.display_name.charAt(0) : "?"}
+                  <div style={{
+                    width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden",
+                    background: "var(--shu)", display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {avatarUrl(r.avatar_path) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatarUrl(r.avatar_path)!} alt={r.display_name ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <span style={{ color: "var(--paper)", fontSize: 11, fontWeight: 700, fontFamily: "serif" }}>
+                        {r.display_name ? r.display_name.charAt(0) : "?"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <span style={{ fontSize: 12, color: "var(--ink-mid)", letterSpacing: "0.08em", fontWeight: 500 }}>
                   {r.display_name ?? "名無し"}

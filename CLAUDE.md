@@ -61,6 +61,16 @@ Next.js（App Router / TypeScript）+ Supabase + Stripe決済。Vercelで `https
 - `profiles` に `bio / area / instagram / website / gear` 列を追加（migration `0007`）。
 - 編集は `ProfileSettings`、他ユーザーの表示は `UserProfileModal`。
 
+### プロフィールの世界観刷新＋顔写真（2026-06-25）
+- 見た目を**ダークな金×紺のアトラス調**に統一（`ProfileSettings` / `UserProfileModal`）。
+  金アクセントは `#C9A86A`〜`#E3C58C`。地球画面と同じ重厚な世界観。
+- 顔写真（アバター）対応。**公開バケット `avatars`**（migration `0008`）に保存し、
+  `profiles.avatar_path` にパスを持つ。URL生成・アップロードは `src/lib/profiles.ts`
+  （`avatarUrl()` / `uploadAvatar()`、画像は512pxにリサイズ）。
+- みんなの図鑑（`SharedFeed`）の投稿者アイコンも、顔写真があれば金リングで表示。
+  `fetchSharedRecords()` が `avatar_path` も返す。
+- 注意: `avatars` は**公開バケット**（URLを知れば誰でも閲覧可）。顔写真を公開する前提の仕様。
+
 ## 位置情報・手動ピン（2026-06-25 実装）
 
 ### 仕組み
