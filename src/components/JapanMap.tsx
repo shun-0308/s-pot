@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PREFECTURES, PREF_EN, regionColor, type Prefecture } from "@/lib/prefectures";
 import { projGeo } from "@/lib/geo";
 
@@ -8,6 +8,8 @@ type Props = {
   /** 県コード → 記録数 */
   counts: Record<number, number>;
   onSelect?: (pref: Prefecture) => void;
+  /** ピンチで拡大・ドラッグで移動できるようにする(プランのスポット追加など) */
+  zoomable?: boolean;
 };
 
 // 緯度経度グリッド(海図風)
@@ -15,20 +17,94 @@ const LONS = [130, 135, 140, 145];
 const LATS = [32, 36, 40, 44];
 
 // 衛星ダーク: 実際の衛星写真(投影一致でクロップ済み)を下敷きにした夜の海図
-export default function JapanMap({ counts, onSelect }: Props) {
+export default function JapanMap({ counts, onSelect, zoomable = false }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const hovered = hover != null ? PREFECTURES.find((q) => q.id === hover) : null;
+
+  // ── ピンチズーム/パン(zoomable のときだけ有効) ──
+  const [view, setView] = useState({ s: 1, x: 0, y: 0 }); // transform: translate(x y) scale(s)
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const ptrs = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const g = useRef({ moved: false, pinch: false, startDist: 0, startS: 1, fx: 0, fy: 0 });
+
+  const toSvg = (cx: number, cy: number): [number, number] => {
+    const r = svgRef.current?.getBoundingClientRect();
+    if (!r) return [0, 0];
+    return [((cx - r.left) / r.width) * 760, ((cy - r.top) / r.height) * 865];
+  };
+  const clamp = (s: number, x: number, y: number) => ({
+    s,
+    x: s <= 1 ? 0 : Math.min(0, Math.max(760 * (1 - s), x)),
+    y: s <= 1 ? 0 : Math.min(0, Math.max(865 * (1 - s), y)),
+  });
+
+  const onDown = (e: React.PointerEvent) => {
+    if (!zoomable) return;
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.current.size === 1) g.current.moved = false;
+    if (ptrs.current.size === 2) {
+      const pts = [...ptrs.current.values()];
+      g.current.pinch = true;
+      g.current.startDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      g.current.startS = view.s;
+      const [sx, sy] = toSvg((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+      g.current.fx = (sx - view.x) / view.s; // 指の中点の下にある「素のコンテンツ座標」
+      g.current.fy = (sy - view.y) / view.s;
+    }
+  };
+
+  const onMove = (e: React.PointerEvent) => {
+    if (!zoomable || !ptrs.current.has(e.pointerId)) return;
+    const prev = ptrs.current.get(e.pointerId)!;
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.current.size >= 2 && g.current.pinch) {
+      const pts = [...ptrs.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      let s = Math.max(1, Math.min(6, g.current.startS * (dist / g.current.startDist)));
+      const [sx, sy] = toSvg((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+      g.current.moved = true;
+      setView(clamp(s, sx - g.current.fx * s, sy - g.current.fy * s));
+      e.preventDefault();
+    } else if (ptrs.current.size === 1 && view.s > 1) {
+      const r = svgRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const dx = ((e.clientX - prev.x) / r.width) * 760;
+      const dy = ((e.clientY - prev.y) / r.height) * 865;
+      if (Math.abs(e.clientX - prev.x) + Math.abs(e.clientY - prev.y) > 2) g.current.moved = true;
+      setView((v) => clamp(v.s, v.x + dx, v.y + dy));
+    }
+  };
+
+  const endPointer = (e: React.PointerEvent) => {
+    if (!zoomable) return;
+    ptrs.current.delete(e.pointerId);
+    if (ptrs.current.size < 2) g.current.pinch = false;
+    if (ptrs.current.size === 0) setTimeout(() => { g.current.moved = false; }, 0);
+  };
 
   const enter = (p: Prefecture, e: React.PointerEvent) => {
     if (e.pointerType === "mouse") setHover(p.id);
   };
   const up = (p: Prefecture, e: React.PointerEvent) => {
+    // ピンチ/ドラッグ中は選択しない(拡大操作を誤タップにしない)
+    if (zoomable && (g.current.pinch || g.current.moved)) return;
     if (e.pointerType === "touch") setHover(p.id); // ラベルを一瞬表示
     onSelect?.(p);
   };
 
+  const tf = `translate(${view.x} ${view.y}) scale(${view.s})`;
+
   return (
-    <svg viewBox="0 0 760 865" style={{ width: "100%", display: "block" }}>
+    <svg
+      ref={svgRef}
+      viewBox="0 0 760 865"
+      style={{ width: "100%", display: "block", touchAction: zoomable ? "none" : undefined, cursor: zoomable && view.s > 1 ? "grab" : undefined }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={endPointer}
+      onPointerCancel={endPointer}
+      onDoubleClick={zoomable ? () => setView({ s: 1, x: 0, y: 0 }) : undefined}
+    >
       <defs>
         {/* 角を丸くして写真の硬い四角を和らげる */}
         <clipPath id="mapRound"><rect x="0" y="0" width="760" height="865" rx="24" ry="24" /></clipPath>
@@ -40,6 +116,7 @@ export default function JapanMap({ counts, onSelect }: Props) {
       </defs>
 
       <g clipPath="url(#mapRound)">
+       <g transform={tf}>
         {/* 衛星写真(lon 128.6–146.2 / lat 30–45.8 を投影どおりに引き伸ばし) */}
         <image href="/textures/japan-satellite.jpg" x="0" y="0" width="760" height="865" preserveAspectRatio="none" />
         {/* 沖縄インセットの下地(すりガラス風。背後の大陸をうっすら残す) */}
@@ -78,6 +155,7 @@ export default function JapanMap({ counts, onSelect }: Props) {
             fillOpacity={has ? 0.9 : 1}
             stroke={has ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.4)"}
             strokeWidth={isHover ? 1.5 : 0.7}
+            vectorEffect={zoomable ? "non-scaling-stroke" : undefined}
             onPointerEnter={(e) => enter(p, e)}
             onPointerLeave={(e) => { if (e.pointerType === "mouse") setHover(null); }}
             onPointerUp={(e) => up(p, e)}
@@ -122,6 +200,7 @@ export default function JapanMap({ counts, onSelect }: Props) {
           </g>
         );
       })()}
+       </g>
 
         {/* ビネット(縁をそっと落とす) */}
         <rect x="0" y="0" width="760" height="865" fill="url(#mapVignette)" pointerEvents="none" />

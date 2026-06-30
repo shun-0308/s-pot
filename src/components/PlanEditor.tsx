@@ -29,6 +29,17 @@ const VIS_LABEL: Record<Visibility, string> = {
   private: "自分だけ", members: "会員に公開", public: "リンクを知る人に公開",
 };
 
+// 記録を「地域ごと」に束ねるための区分(SideMenu と同じ並び)
+const REC_REGIONS = [
+  { name: "北海道・東北", a: 1, b: 7, color: "#9DBE8D" },
+  { name: "関東", a: 8, b: 14, color: "#8FB7CC" },
+  { name: "中部", a: 15, b: 23, color: "#A8C8B8" },
+  { name: "近畿", a: 24, b: 30, color: "#C9A8D4" },
+  { name: "中国・四国", a: 31, b: 39, color: "#E0A878" },
+  { name: "九州・沖縄", a: 40, b: 47, color: "#D9C97E" },
+  { name: "海外・その他", a: -1, b: -1, color: "#B7AE9C" },
+] as const;
+
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", border: "1px solid var(--hairline)",
   background: "var(--paper)", color: "var(--ink)", fontSize: 14, fontFamily: "inherit",
@@ -387,12 +398,31 @@ function AddItemModal({ records, favoriteRecords, clips, existingRecordIds, onCl
 
           {tab === "record" && (
             <>
-              <input style={{ ...inputStyle, marginBottom: 10 }} placeholder="記録名・住所でしぼり込み" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input style={{ ...inputStyle, marginBottom: 12 }} placeholder="記録名・住所でしぼり込み" value={q} onChange={(e) => setQ(e.target.value)} />
               {filteredRecords.length === 0 ? <Empty>該当する記録がありません。</Empty> :
-                filteredRecords.map((r) => (
-                  <PickRow key={r.id} title={r.name} sub={(r.address ?? "") + (existingRecordIds.has(r.id) ? "（追加済み）" : "")} busy={busy}
-                    onPick={() => onAdd({ record_id: r.id, name: r.name, address: r.address, lat: r.lat, lng: r.lng })} />
-                ))}
+                REC_REGIONS.map((rg) => {
+                  const inRegion = filteredRecords.filter((r) =>
+                    rg.a === -1
+                      ? !(r.country_code === JAPAN_CODE && r.pref_code != null && r.pref_code >= 1 && r.pref_code <= 47)
+                      : r.country_code === JAPAN_CODE && r.pref_code != null && r.pref_code >= rg.a && r.pref_code <= rg.b
+                  );
+                  if (!inRegion.length) return null;
+                  return (
+                    <div key={rg.name} style={{ marginBottom: 18 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "2px 2px 10px" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: rg.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)", letterSpacing: "0.04em" }}>{rg.name}</span>
+                        <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{inRegion.length}</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(94px, 1fr))", gap: "16px 10px" }}>
+                        {inRegion.map((r) => (
+                          <MiniCheki key={r.id} rec={r} added={existingRecordIds.has(r.id)} busy={busy}
+                            onPick={() => onAdd({ record_id: r.id, name: r.name, address: r.address, lat: r.lat, lng: r.lng })} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
             </>
           )}
 
@@ -400,9 +430,9 @@ function AddItemModal({ records, favoriteRecords, clips, existingRecordIds, onCl
             mapPref == null ? (
               <>
                 <div style={{ fontSize: 12, color: "var(--ink-soft)", textAlign: "center", padding: "2px 8px 10px", lineHeight: 1.8 }}>
-                  色のついた県をタップ → その県の記録カードから選べます。
+                  色のついた県をタップ → その県の記録カードから選べます。<br />ピンチで拡大・ドラッグで移動・ダブルタップで戻ります。
                 </div>
-                <JapanMap counts={prefCounts} onSelect={(p) => setMapPref(p.id)} />
+                <JapanMap counts={prefCounts} zoomable onSelect={(p) => setMapPref(p.id)} />
               </>
             ) : (
               <>
@@ -467,6 +497,24 @@ function PickRow({ title, sub, onPick, busy }: { title: string; sub?: string; on
         <span style={{ display: "block", fontSize: 14, color: "var(--ink)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
         {sub && <span style={{ display: "block", fontSize: 11.5, color: "var(--ink-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>}
       </span>
+    </button>
+  );
+}
+
+// 地域ごとに並べる小さなチェキ風カード(画鋲＋ほんの少し傾き)
+function MiniCheki({ rec, added, busy, onPick }: { rec: RecordWithPhotos; added: boolean; busy: boolean; onPick: () => void }) {
+  const tilt = (parseInt(rec.id.replace(/\D/g, "").slice(-3) || "0", 10) % 5) - 2;
+  return (
+    <button onClick={onPick} disabled={busy} title={rec.name}
+      style={{ position: "relative", background: "var(--paper-raise)", border: "none", padding: "7px 7px 9px", borderRadius: 3, cursor: busy ? "default" : "pointer", fontFamily: "inherit", boxShadow: "0 5px 13px rgba(46,42,37,0.18)", transform: `rotate(${tilt}deg)`, textAlign: "left" }}>
+      <span style={{ position: "absolute", top: -7, left: "50%", transform: "translateX(-50%)", width: 13, height: 13, borderRadius: "50%", background: "radial-gradient(circle at 34% 30%, #c98b6b 0%, #a85a3c 62%, #7e3f28 100%)", boxShadow: "0 2px 4px rgba(46,42,37,0.4)" }} />
+      <span style={{ display: "block", width: "100%", height: 76, overflow: "hidden", background: "#E8E4D8" }}>
+        <Photo rec={rec} w="100%" h={76} />
+      </span>
+      <span className="tz-serif" style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--ink)", lineHeight: 1.35, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.name}</span>
+      {added
+        ? <span style={{ display: "block", fontSize: 9.5, color: "var(--shu)", marginTop: 1 }}>追加済み</span>
+        : <span style={{ display: "block", fontSize: 9.5, color: "var(--ink-faint)", marginTop: 1 }}>＋ 追加</span>}
     </button>
   );
 }
