@@ -110,6 +110,67 @@ Next.js（App Router / TypeScript）+ Supabase + Stripe決済。Vercelで `https
   `overlays` で `UserProfileModal` を描画。`SideMenu` の `onOpenUser` で起動。
 - `ProfileSettings` のプラン（SUBSCRIPTION）欄は**一番下**へ移動。
 
+## お出かけプラン・クリップ（2026-06-27 実装 / フェーズ1）
+
+行きたいスポットを並べて「旅のしおり」を作る機能。フェーズ1は **作成＋クリップ＋地図確認** を実装。
+公開・他人プラン参考・検索はフェーズ2（DBは公開対応済み）。
+
+### データ（migration `0009_plans_and_clips.sql`・本番適用済み）
+- **`clips`**: 行きたい場所の保存（wishlist）。♡(favorites=いいね/思い出)とは**別物**。
+  既存記録由来（`record_id`）でも、地図/検索で見つけたフリーな場所でも保存可。RLSは本人のみ。
+  `(user_id, record_id)` の部分一意index で同じ記録の二重クリップを防止。
+- **`plans`**: しおり本体。`title / description / plan_date / visibility(private既定)`。
+  RLSは owner全操作＋members/public読み取り（recordsと同じ `owner_active()` 方式）。
+- **`plan_items`**: 行き先（`sort`順）。記録由来でもフリーでも可。`name/address/lat/lng/note/planned_time`。
+  読みは親plansが読めれば可、書きは親plansの持ち主のみ。
+
+### lib
+- `src/lib/clips.ts`: `fetchClips / fetchClippedRecordIds / addClip / removeClip / toggleClipForRecord`。
+- `src/lib/plans.ts`: `fetchPlans(件数つき) / fetchPlan(項目つき) / createPlan / updatePlan / deletePlan /
+  addPlanItem / updatePlanItem / removePlanItem / reorderPlanItems`。
+
+### UI
+- `PlansPage`: プラン一覧＋新規作成（作成後そのまま編集へ）。`SideMenu` の「🚩 お出かけプラン」から。
+- `PlanEditor`: タイトル/日付/公開設定の編集、行き先リスト（↑↓並べ替え・削除・メモ/時刻インライン編集）、
+  **スポット追加モーダル**（クリップ / 記録(自分＋♡他人) / **日本地図**(県タップ→その県の記録カードから選ぶ) / 検索(geocodeで自由な場所)）。
+  日本地図タブは `JapanMap`（counts=選択可能な記録の県別件数）を再利用し、県選択→`Photo`サムネ付きカード一覧。
+- **位置の正確性（重要）**: 各プラン項目に「地図で位置を調整」を追加。`LocationPicker`（実OpenStreetMap・
+  ドラッグ可能ピン）＋地名検索（`geocodeCandidates`）で**実緯度経度（小数6桁）を必ず確定**できる。
+  座標未設定の項目は地図に出さず「位置未設定」と明示（偽座標は置かない）。`saveItemCoords` が
+  楽観更新＋`updatePlanItem({lat,lng})`で永続化し、順路マップ`PlanMap`に即反映。
+  ジオコーダは `/api/geocode` が **Google Places優先**（`GOOGLE_MAPS_API_KEY` があれば最精度）→Photon→Nominatim。
+- `PlanMap`: 番号つきピン＋金色の順路ライン（Leaflet）。`SharedMap` と同じタイル方式。
+- `ClipsPage`: クリップ一覧＋地図。「📍 クリップ」メニューから。`SpotDetail` の **🚩ClipButton**（♡の隣）で保存。
+- 状態は `page.tsx` の `clips / clippedIds / planId` に集約。♡同様クリップも楽観更新。
+
+### 検証
+- `tsc --noEmit` グリーン（プロジェクトの pinned `stripe@22.2.2` で確認）。
+
+## みんなのプラン・写真シェア・おすすめ検索（2026-06-27 実装 / フェーズ2）
+
+フェーズ1のDB（`plans.visibility`）の上に、公開プランの閲覧・検索・複製を実装。
+
+### lib（`src/lib/plans.ts` 追記）
+- **`fetchPlans` を自分のみに修正**（重要）。members/public読みRLSがあるため
+  `.eq("user_id", 自分)` を入れないと他人の公開プランが「自分のプラン一覧」に混ざる。
+- `fetchSharedPlans()`: 他人の members/public プラン一覧。投稿者プロフィール（顔写真）、
+  項目数、項目名リスト（検索用）、カバー写真（先頭の記録由来項目の写真）つき。
+- `fetchSharedPlan(id)`: 公開プラン1件を読み取り。項目＋写真URL＋投稿者。
+- `duplicatePlan(srcId)`: 「このプランを参考にする」。自分のprivateプランとして全項目を複製。
+- 写真は `recordPhotoMap()` が記録由来項目の先頭写真を署名URL化（RLSで読めない記録は自然に写真なし）。
+
+### UI
+- `SharedPlansPage`: みんなのプラン一覧＋キーワード検索（タイトル/説明/投稿者/行き先名で絞り込み）。
+  カバー写真つきカード。「✨ みんなのプラン」メニューから。
+- `PlanView`: 公開プランの読み取り専用ビュー。地図＋写真つき行き先＋投稿者。
+  「このプランを参考にする」で `duplicatePlan` → 自分の `PlanEditor` へ。
+- `PlanEditor`: 公開中（members/public）のとき金色の共有バナーを表示（写真も共有される旨）。
+- page.tsx に `shared-plans` / `shared-plan` ビューと `viewPlanId` state を追加。
+
+### 注意・今後（フェーズ3候補）
+- 公開プランの「アプリ外で開けるURL」はまだ無い（閲覧はアプリ内ナビのみ）。
+  真の共有リンクが欲しければ `/plan/[id]` ルートを足す。
+
 ## メモの運用
 
 何か決まった事・直した事があれば、このファイルに追記していくと次回スムーズです。

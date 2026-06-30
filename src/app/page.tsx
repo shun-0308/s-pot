@@ -11,6 +11,11 @@ import SharedFeed from "@/components/SharedFeed";
 import ProfileSettings from "@/components/ProfileSettings";
 import UserProfileModal from "@/components/UserProfileModal";
 import SearchPage from "@/components/SearchPage";
+import PlansPage from "@/components/PlansPage";
+import PlanEditor from "@/components/PlanEditor";
+import ClipsPage from "@/components/ClipsPage";
+import SharedPlansPage from "@/components/SharedPlansPage";
+import PlanView from "@/components/PlanView";
 import { useAccess, Splash, InviteScreen, MembersOnlyScreen } from "@/components/AccessGate";
 import PlaceSearch from "@/components/PlaceSearch";
 import GlobeView from "@/components/GlobeView";
@@ -28,11 +33,12 @@ import {
   type RecordWithPhotos,
 } from "@/lib/records";
 import { fetchFavoriteIds, fetchFavoriteRecords } from "@/lib/favorites";
+import { fetchClips, fetchClippedRecordIds, toggleClipForRecord, removeClip, type ClipRow } from "@/lib/clips";
 import { captionOf, prefByCode, PREF_EN, type Prefecture } from "@/lib/prefectures";
 import Photo from "@/components/Photo";
 import FavoriteButton from "@/components/FavoriteButton";
 
-type View = "globe" | "japan" | "country" | "shared" | "log" | "search";
+type View = "globe" | "japan" | "country" | "shared" | "log" | "search" | "plans" | "plan" | "clips" | "shared-plans" | "shared-plan";
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
@@ -53,6 +59,10 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoriteRecords, setFavoriteRecords] = useState<RecordWithPhotos[]>([]);
+  const [clips, setClips] = useState<ClipRow[]>([]);
+  const [clippedIds, setClippedIds] = useState<Set<string>>(new Set());
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [viewPlanId, setViewPlanId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileUser, setProfileUser] = useState<{ userId: string; displayName: string | null } | null>(null);
   const [flyTo, setFlyTo] = useState<{ code: string; key: number } | null>(null);
@@ -72,12 +82,15 @@ export default function Home() {
   // 記録ロード
   const reload = useCallback(async () => {
     try {
-      const [recs, favIds, favRecs] = await Promise.all([
+      const [recs, favIds, favRecs, clipList, clipIds] = await Promise.all([
         fetchRecords(), fetchFavoriteIds(), fetchFavoriteRecords(),
+        fetchClips(), fetchClippedRecordIds(),
       ]);
       setRecords(recs);
       setFavoriteIds(favIds);
       setFavoriteRecords(favRecs);
+      setClips(clipList);
+      setClippedIds(clipIds);
       // 住所ありで座標なしの記録をバックグラウンドで補完(完了後に再ロード)
       const needs = recs.filter((r) => r.lat == null && r.address);
       if (needs.length) {
@@ -91,7 +104,7 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (session) reload();
-    else { setRecords([]); setFavoriteIds(new Set()); setFavoriteRecords([]); }
+    else { setRecords([]); setFavoriteIds(new Set()); setFavoriteRecords([]); setClips([]); setClippedIds(new Set()); }
   }, [session, reload]);
 
   // ── お気に入りトグル(全画面で共有・楽観更新) ──
@@ -108,6 +121,33 @@ export default function Home() {
       return prev.filter((r) => r.id !== rec.id);
     });
   }, []);
+
+  // ── クリップ(行きたい場所)トグル。記録から。楽観更新＋永続化 ──
+  const handleToggleClip = useCallback((rec: RecordWithPhotos, next: boolean) => {
+    setClippedIds((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(rec.id); else s.delete(rec.id);
+      return s;
+    });
+    toggleClipForRecord(rec, !next)
+      .then(() => fetchClips().then(setClips).catch(() => {}))
+      .catch(() => {
+        // 失敗時はロールバック
+        setClippedIds((prev) => {
+          const s = new Set(prev);
+          if (next) s.delete(rec.id); else s.add(rec.id);
+          return s;
+        });
+      });
+  }, []);
+
+  // クリップ一覧からの削除
+  const handleRemoveClip = useCallback((id: string) => {
+    const target = clips.find((c) => c.id === id);
+    setClips((prev) => prev.filter((c) => c.id !== id));
+    if (target?.record_id) setClippedIds((prev) => { const s = new Set(prev); s.delete(target.record_id!); return s; });
+    removeClip(id).catch(() => { fetchClips().then(setClips).catch(() => {}); });
+  }, [clips]);
 
 
   // アクセス制御(公開モード+S-Lab会員判定)
@@ -371,6 +411,9 @@ export default function Home() {
         onLog={() => { setMenuOpen(false); setSpot(null); setView("log"); }}
         onSearch={() => { setMenuOpen(false); setSpot(null); setView("search"); }}
         onShared={() => { setMenuOpen(false); setSpot(null); setView("shared"); }}
+        onPlans={() => { setMenuOpen(false); setSpot(null); setPlanId(null); setView("plans"); }}
+        onClips={() => { setMenuOpen(false); setSpot(null); setView("clips"); }}
+        onSharedPlans={() => { setMenuOpen(false); setSpot(null); setView("shared-plans"); }}
         onProfile={() => { setMenuOpen(false); setProfileOpen(true); }}
         onLogout={() => { setMenuOpen(false); supabase.auth.signOut(); }}
         onCountry={navToCountry}
@@ -442,6 +485,75 @@ export default function Home() {
       </>
     );
 
+  // ── お出かけプラン一覧 ──
+  if (view === "plans")
+    return (
+      <>
+        {overlays}
+        <PlansPage
+          onBack={() => { setSpot(null); setView("globe"); }}
+          onMenu={() => setMenuOpen(true)}
+          onOpenPlan={(id) => { setPlanId(id); setView("plan"); }}
+        />
+      </>
+    );
+
+  // ── プラン編集(旅のしおり) ──
+  if (view === "plan" && planId)
+    return (
+      <>
+        {overlays}
+        <PlanEditor
+          planId={planId}
+          records={records}
+          favoriteRecords={favoriteRecords}
+          clips={clips}
+          onBack={() => { setPlanId(null); setView("plans"); }}
+        />
+      </>
+    );
+
+  // ── みんなのプラン(公開プランを探す) ──
+  if (view === "shared-plans")
+    return (
+      <>
+        {overlays}
+        <SharedPlansPage
+          onBack={() => { setSpot(null); setView("globe"); }}
+          onMenu={() => setMenuOpen(true)}
+          onOpenPlan={(id) => { setViewPlanId(id); setView("shared-plan"); }}
+        />
+      </>
+    );
+
+  // ── 公開プランの閲覧(読み取り専用) ──
+  if (view === "shared-plan" && viewPlanId)
+    return (
+      <>
+        {overlays}
+        <PlanView
+          planId={viewPlanId}
+          onBack={() => { setViewPlanId(null); setView("shared-plans"); }}
+          onDuplicated={(newId) => { setViewPlanId(null); reload(); setPlanId(newId); setView("plan"); }}
+        />
+      </>
+    );
+
+  // ── クリップ(行きたい場所) ──
+  if (view === "clips")
+    return (
+      <>
+        {overlays}
+        <ClipsPage
+          clips={clips}
+          onBack={() => { setSpot(null); setView("globe"); }}
+          onMenu={() => setMenuOpen(true)}
+          onRemove={handleRemoveClip}
+          onOpenPlans={() => { setPlanId(null); setView("plans"); }}
+        />
+      </>
+    );
+
   // ── 記録詳細(日本・海外 共通) ──
   if (spot) {
     const backLabel = view === "log"
@@ -460,6 +572,8 @@ export default function Home() {
           isOwner={spot.user_id === session?.user.id}
           isFav={favoriteIds.has(spot.id)}
           onToggleFav={(next) => handleToggleFavorite(spot, next)}
+          isClipped={clippedIds.has(spot.id)}
+          onToggleClip={(next) => handleToggleClip(spot, next)}
           onBack={() => setSpot(null)} onUpdate={handleUpdate} onDelete={handleDelete} />
       </>
     );

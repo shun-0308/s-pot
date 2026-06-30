@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RecordForm, { VISIBILITY_LABEL, type FormValues } from "./RecordForm";
 import FavoriteButton from "./FavoriteButton";
+import ClipButton from "./ClipButton";
 import { type RecordWithPhotos } from "@/lib/records";
 import { youtubeEmbed } from "@/lib/youtube";
 
@@ -14,13 +15,15 @@ type Props = {
   isOwner?: boolean; // falseなら編集・削除ボタンを非表示
   isFav?: boolean; // 親(page)が持つお気に入り状態
   onToggleFav?: (next: boolean) => void;
+  isClipped?: boolean; // 親(page)が持つクリップ状態(行きたい)
+  onToggleClip?: (next: boolean) => void;
   onBack: () => void;
   onUpdate: (rec: RecordWithPhotos, v: FormValues) => void;
   onDelete: (rec: RecordWithPhotos) => void;
 };
 
 // 記録詳細 — 暗幕(ダーク)ビュー。写真と記録文だけが浮かぶ
-export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner = true, isFav = false, onToggleFav, onBack, onUpdate, onDelete }: Props) {
+export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner = true, isFav = false, onToggleFav, isClipped = false, onToggleClip, onBack, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -125,7 +128,10 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
               <h2 className="tz-serif" style={{ fontSize: 24, fontWeight: 700, margin: 0, lineHeight: 1.5, letterSpacing: "0.04em", color: "var(--dark-strong)" }}>
                 {rec.name}
               </h2>
-              <FavoriteButton recordId={rec.id} initialFav={isFav} size={22} onToggle={onToggleFav} />
+              <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+                {onToggleClip && <ClipButton clipped={isClipped} size={21} onToggle={onToggleClip} />}
+                <FavoriteButton recordId={rec.id} initialFav={isFav} size={22} onToggle={onToggleFav} />
+              </div>
             </div>
 
             <p style={{ fontSize: 14.5, lineHeight: 2.3, marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--hairline-dark)", whiteSpace: "pre-wrap", color: "var(--dark-body)", letterSpacing: "0.02em" }}>

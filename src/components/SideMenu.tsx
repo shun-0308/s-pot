@@ -17,6 +17,9 @@ type Props = {
   onLog: () => void;
   onSearch: () => void;
   onShared: () => void;
+  onPlans: () => void;
+  onClips: () => void;
+  onSharedPlans: () => void;
   onProfile: () => void;
   onLogout: () => void;
   onCountry: (code: string) => void; // 地球ズーム経由で国へ
@@ -43,7 +46,7 @@ const itemStyle: React.CSSProperties = {
 
 export default function SideMenu({
   open, onClose, countryCounts, prefCounts,
-  favoriteRecords, onGlobe, onLog, onSearch, onShared,
+  favoriteRecords, onGlobe, onLog, onSearch, onShared, onPlans, onClips, onSharedPlans,
   onProfile, onLogout, onCountry, onPref, onSelectSpot, onOpenUser,
 }: Props) {
   const [openRegion, setOpenRegion] = useState<number | null>(null);
@@ -150,6 +153,11 @@ export default function SideMenu({
           日本地図
           <Count n={countryCounts[JAPAN_CODE] ?? 0} />
         </button>
+
+        <Cap>PLAN — お出かけ</Cap>
+        <button style={itemStyle} onClick={onPlans}>🚩 お出かけプラン</button>
+        <button style={itemStyle} onClick={onClips}>📍 クリップ（行きたい場所）</button>
+        <button style={itemStyle} onClick={onSharedPlans}>✨ みんなのプラン</button>
 
         <Cap>RECORDS</Cap>
         <button style={itemStyle} onClick={onSearch}>記録をさがす</button>
