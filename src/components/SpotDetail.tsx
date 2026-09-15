@@ -205,9 +205,11 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
             )}
 
             <div style={{ display: "flex", gap: 14, marginTop: 16, alignItems: "center" }}>
-              <span style={{ fontSize: 10.5, color: "var(--dark-faint)", border: "1px solid var(--hairline-dark)", padding: "4px 12px", letterSpacing: "0.14em" }}>
-                {VISIBILITY_LABEL[rec.visibility]}
-              </span>
+              {isOwner && (
+                <span style={{ fontSize: 10.5, color: "var(--dark-faint)", letterSpacing: "0.1em" }}>
+                  公開設定：{VISIBILITY_LABEL[rec.visibility]}
+                </span>
+              )}
               {rec.lat != null && rec.lng != null && (
                 <a href={`https://www.google.com/maps?q=${rec.lat},${rec.lng}`}
                   target="_blank" rel="noreferrer"
