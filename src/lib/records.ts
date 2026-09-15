@@ -64,6 +64,22 @@ export async function fetchSharedRecords(): Promise<RecordWithPhotos[]> {
   return attachUrls(records);
 }
 
+// 公開(visibility=public)の記録を1件、匿名でも取得する(公開ページ /s/[id] 用)。
+// RLS により public 以外・投稿者が非activeの場合は匿名では返らない(=null)。
+export async function fetchPublicRecord(id: string): Promise<RecordWithPhotos | null> {
+  const { data, error } = await supabase
+    .from("records")
+    .select("*, photos:record_photos(*)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const rec = data as unknown as RecordWithPhotos;
+  rec.photos = [...(rec.photos ?? [])].sort((a, b) => a.sort - b.sort);
+  const [withUrls] = await attachUrls([rec]);
+  return withUrls ?? null;
+}
+
 // クライアント側リサイズ(長辺2000px・JPEG)
 export async function resizeImage(file: File, maxSide = 2000): Promise<Blob> {
   const bitmap = await createImageBitmap(file);

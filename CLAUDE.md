@@ -171,6 +171,153 @@ Next.js（App Router / TypeScript）+ Supabase + Stripe決済。Vercelで `https
 - 公開プランの「アプリ外で開けるURL」はまだ無い（閲覧はアプリ内ナビのみ）。
   真の共有リンクが欲しければ `/plan/[id]` ルートを足す。
 
+## 記録の公開ページ（非会員も閲覧可 / 2026-09-15 実装）
+
+`visibility=public` の記録を、**ログイン不要の単独ページ `/s/[id]`** で読み取り専用表示できる。
+
+- **DB変更は不要だった**。records / record_photos / storage.objects の SELECT ポリシーが
+  既に「`visibility='public'` かつ投稿者active なら**匿名(anon)でも読める**」設計になっていた
+  （storage は写真パス `user_id/record_id/...` の `foldername[2]=record_id` で記録の公開判定）。
+- `src/app/s/[id]/page.tsx`: アクセスゲート(page.tsx)の外の独立ルート。`fetchPublicRecord(id)`
+  （`src/lib/records.ts`・匿名クライアントで取得。非公開はRLSで null）→ `SpotDetail` を
+  `isOwner={false}`・♡/クリップ/戻る無しで再利用して表示。非公開/不明なら「公開されていません」。
+- `SpotDetail` を公開表示でも安全なよう微修正: `onBack/onUpdate/onDelete` を任意化、♡は
+  `onToggleFav` がある時だけ描画（未ログインで押せない）、所有者かつpublicのとき
+  **「共有リンクをコピー」ボタン**（`${origin}/s/${id}`）を追加。
+- 未実装（今後）: OGP（LINE/X用のリンクプレビュー）。写真は署名URL(期限付き)なので、
+  og:image を出すならサーバー側で長期署名URLを発行するルートが要る。
+
 ## メモの運用
 
 何か決まった事・直した事があれば、このファイルに追記していくと次回スムーズです。
+
+## ロケハン情報のAI下書き（2026-07-28 実装）
+
+`records.scout`（jsonb / `0005_scout_info.sql`）の各項目を自動で埋めるための仕組み。
+
+### いちばん大事な設計判断：Geminiのgroundingは使わない
+
+Gemini の `googleSearch` / `googleMaps` grounding（＝AIが自分で検索して調べる機能）は、
+**無料枠に割り当てが無く、1回目の呼び出しから 429 RESOURCE_EXHAUSTED になる**。
+2026-07-28 に実測した結果は以下（`scripts/gemini-probe2.mjs` で再現できる）:
+
+| 試したこと | 結果 |
+|---|---|
+| モデル一覧の取得 | ✅ 200（50モデル） |
+| tools無しの通常生成 | ✅ 200（`gemini-3.5-flash` / `gemini-3.1-flash-lite`） |
+| `responseSchema` 構造化出力 | ✅ 200 |
+| `googleMaps` grounding | ❌ 429（全モデル） |
+| `googleSearch` grounding | ❌ 429（全モデル） |
+| `gemini-2.5-flash` / `-lite` | ❌ 404「新規ユーザーには提供終了」 |
+| `gemini-2.5-pro` | ❌ 429（toolsを使わなくても＝無料枠が無い） |
+
+429 が**1回目から全モデル一律**で出るので、これは叩きすぎのレート制限ではなく
+「無料枠に grounding の割り当てがそもそも0」ということ。使うには課金の有効化が必須。
+
+**なので役割を完全に分けた:**
+
+- **事実（駅・駐車場・トイレ・コンビニ）を取るのは地図API** → `src/lib/nearby.ts`
+- **文章にするのは Gemini（tools無し＋responseSchema）** → `src/lib/gemini.ts`
+
+これは単なる回避策ではなく、**AIが駐車場の名前を捏造できなくなる**という利点がある。
+実データに載っている固有名詞しか使わないようプロンプトで縛っている。
+
+### ファイル構成
+
+- `src/lib/nearby.ts` — 周辺施設の実データ取得。
+  - ① `GOOGLE_MAPS_API_KEY` があれば **Google Places Nearby Search (New)**（精度最高）
+  - ② 無ければ **Overpass(OSM)**（無料・キー不要）
+  - `geocode/route.ts` と同じ「キーがあれば昇格」方式なので、後からキーを足すだけで精度が上がる。
+- `src/lib/gemini.ts` — Gemini呼び出しの薄いラッパ。tools不使用。モデルは
+  `gemini-3.5-flash` → `gemini-3.1-flash-lite` → `gemini-3-flash-preview` の順にフォールバック。
+- `src/lib/scout-ai.ts` — 実データ＋撮影知識から `ScoutDraft` を生成。
+- `src/app/api/scout/route.ts`
+  - `GET  /api/scout?lat=..&lng=..` → 周辺の実データだけ（Gemini不使用・完全無料）
+  - `POST /api/scout {lat,lng,name,address?,season?}` → 実データ＋AI下書き
+  - Geminiが失敗しても**周辺データだけは200で返す**（UIは「AIは失敗、施設情報は表示」にできる）
+
+### ⚠️ Overpass(OSM)を使うときの落とし穴
+
+- **POST + User-Agent無し だと 406 が返る。必ず GET + User-Agent を付ける。**（ここで一度ハマった）
+- 公開サーバーは混雑時に **429 / 504** を普通に返す。ミラー3つ＋リトライで粘り、
+  それでもダメなら空配列を返してアプリは落とさない設計にしてある。
+- `overpass.osm.ch` はスイス限定データなので日本では0件。使わないこと。
+- 施設の種類は1リクエストにまとめて投げている（公開サーバーへの負荷とレート制限対策）。
+
+### 動作確認
+
+```bash
+node scripts/scout-e2e.mjs     # 浅草寺で 実データ取得 → AI下書き まで通す
+node scripts/gemini-probe2.mjs # モデル×tools の可否マトリクスを再測定
+```
+
+2026-07-28 の実行結果: 浅草寺で駅3件・駐車場6件（パークジャパン/タイムズ/リパーク/ナガハマ）等を
+OSMから取得し、`gemini-3.5-flash` が実在の施設名だけを使った下書きを生成。捏造チェックも通過。
+
+### 次にやると良いこと
+
+1. **`GOOGLE_MAPS_API_KEY` を `.env.local` に追加**する（`/api/geocode` の精度も同時に上がる）。
+   Google Maps Platform は月ごとの無料呼び出し枠があり、このアプリの規模なら実質無料の見込み。
+2. **結果のキャッシュ**。同じスポットを開くたびに外部APIを叩くと、無料枠もOverpassも保たない。
+   `records.scout` に保存するか、座標を丸めたキーでキャッシュ用テーブルを作るのが良い。
+3. UI（記録編集画面に「AIで下書き」ボタン → `POST /api/scout` → `scout` を各欄に流し込む）。
+
+### キャッシュ（2026-07-28 追加）
+
+`nearby_cache` テーブル（`0010_nearby_cache.sql` / **本番適用済み**）。
+座標を小数第4位（≒11m）に丸めたキーで、周辺施設の取得結果を全ユーザーで共有する。
+
+- 読み書きは `src/lib/nearby-cache.ts`（サービスロール＝サーバー専用）
+- TTL 30日（施設の新設・閉鎖を拾い直すため）
+- **空の結果は保存しない** — 一時的な取得失敗を30日固定してしまうので
+- キャッシュが壊れても機能は止まらない（読めなければ外部APIに行くだけ）
+
+実測: 初回 Overpass 7,614ms → 2回目 キャッシュ 128ms（約60倍）。
+Overpassの429/504を踏む確率も、同じスポットでは実質ゼロになる。
+
+### ⚠️ チップ語彙とAI出力の同期（重要）
+
+`best_time` / `tripod` / `permit` は `RecordForm.tsx` で**チップ選択式**になっており語彙が固定。
+AIが自由文を返すとチップが一つも選択状態にならず壊れるので、`scout-ai.ts` の
+`responseSchema` の **enum** で出力を語彙そのものに縛っている。
+
+```
+SCOUT_TIMES  = ["朝焼け", "午前", "午後", "夕暮れ", "夜景"]
+SCOUT_TRIPOD = ["可", "条件付き", "不可"]
+SCOUT_PERMIT = ["不要", "要確認", "要申請"]
+```
+
+**この3つは `src/components/RecordForm.tsx` と `src/lib/scout-ai.ts` の両方に定義がある。
+片方だけ変えると壊れる。** 両方に警告コメントを入れてあるが、変更時は必ず `scout-e2e.mjs` で確認すること。
+
+### UI（記録フォーム）
+
+「ロケハン情報」パネルの中に **「✨ AIで下書きする（空欄のみ）」** ボタン。
+
+- 座標が未設定なら「先に地図でピンを置いてください」と案内（周辺検索に座標が必須のため）
+- **既に入力済みの欄は上書きしない。** 空欄だけ埋めて「どの欄を埋めたか」を報告する
+  （書いたメモを消されるのが一番困るため）
+- 「根拠にした周辺データ（N件）」を `<details>` で開ける。AIが何を見て書いたかを人が検証できる
+- Geminiが失敗しても周辺データは表示される（`/api/scout` が200で返す設計）
+
+### 動作確認
+
+```bash
+node scripts/scout-e2e.mjs   # キャッシュ / enum一致 / 捏造チェック まで自動判定（失敗なら exit 1）
+```
+
+2026-07-28 実行: 全チェック通過（浅草寺 / `gemini-3.5-flash`）。
+
+### 既知の環境問題
+
+**このMacでは `tsc` が起動時にハングする**（node の `LoadEnvironment` で停止、CPU 0%）。
+小さなnodeスクリプトは正常に動くので、`node_modules` の大量ファイル読み込みが詰まっている。
+`Documents` 配下の同期が原因の可能性あり。型チェックは別環境で実行するか、
+`node_modules` を同期対象外にすると直るかもしれない。
+
+### 次にやると良いこと
+
+1. **`GOOGLE_MAPS_API_KEY` を `.env.local` に追加**（`/api/geocode` の精度も同時に上がる）。
+   `src/lib/nearby.ts` は キーがあれば自動で Google Places に切り替わる。コード変更は不要。
+2. 生成結果への「AI下書き」バッジ表示（人が書いたメモと区別できるように）。
+3. `SpotDetail` 側からも周辺情報だけを見られるようにする（`GET /api/scout` は無料）。

@@ -17,9 +17,9 @@ type Props = {
   onToggleFav?: (next: boolean) => void;
   isClipped?: boolean; // 親(page)が持つクリップ状態(行きたい)
   onToggleClip?: (next: boolean) => void;
-  onBack: () => void;
-  onUpdate: (rec: RecordWithPhotos, v: FormValues) => void;
-  onDelete: (rec: RecordWithPhotos) => void;
+  onBack?: () => void; // 公開ページなど戻り先が無い場合は省略
+  onUpdate?: (rec: RecordWithPhotos, v: FormValues) => void;
+  onDelete?: (rec: RecordWithPhotos) => void;
 };
 
 // 記録詳細 — 暗幕(ダーク)ビュー。写真と記録文だけが浮かぶ
@@ -27,6 +27,16 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [viewer, setViewer] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // 公開リンク（visibility=public のとき所有者が共有できる）をコピー
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/s/${rec.id}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* クリップボード不可の環境では無視 */ }
+  };
 
   const photos = rec.photos.filter((p) => p.url);
   // 写真ごとに安定した「散らし」(idベースなので再描画でも揺れない)
@@ -79,10 +89,12 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
       )}
 
       <div className="card" style={{ maxWidth: editing ? 560 : "min(1500px, 94vw)", margin: "0 auto" }}>
-        <button onClick={onBack}
-          style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12, cursor: "pointer", padding: 0, marginBottom: 22, fontFamily: "inherit", letterSpacing: "0.1em" }}>
-          ← {backLabel}
-        </button>
+        {onBack && (
+          <button onClick={onBack}
+            style={{ background: "none", border: "none", color: "var(--dark-faint)", fontSize: 12, cursor: "pointer", padding: 0, marginBottom: 22, fontFamily: "inherit", letterSpacing: "0.1em" }}>
+            ← {backLabel}
+          </button>
+        )}
 
         {editing ? (
           <div style={{ background: "var(--paper)", padding: "20px 18px" }}>
@@ -93,7 +105,7 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
               prefSelectable={rec.country_code === "392"}
               jpOnly={rec.country_code === "392"}
               busy={busy}
-              onSubmit={(v) => { onUpdate(rec, v); setEditing(false); }}
+              onSubmit={(v) => { onUpdate?.(rec, v); setEditing(false); }}
               onCancel={() => setEditing(false)}
             />
           </div>
@@ -130,7 +142,7 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
               </h2>
               <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
                 {onToggleClip && <ClipButton clipped={isClipped} size={21} onToggle={onToggleClip} />}
-                <FavoriteButton recordId={rec.id} initialFav={isFav} size={22} onToggle={onToggleFav} />
+                {onToggleFav && <FavoriteButton recordId={rec.id} initialFav={isFav} size={22} onToggle={onToggleFav} />}
               </div>
             </div>
 
@@ -200,6 +212,12 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
                   地図で開く ↗
                 </a>
               )}
+              {isOwner && rec.visibility === "public" && (
+                <button onClick={copyShareLink}
+                  style={{ fontSize: 10.5, color: copied ? "#9DBE8D" : "var(--dark-body)", border: `1px solid ${copied ? "#9DBE8D" : "var(--hairline-dark)"}`, background: "none", padding: "4px 12px", letterSpacing: "0.12em", cursor: "pointer", fontFamily: "inherit", marginLeft: 8 }}>
+                  {copied ? "コピーしました ✓" : "共有リンクをコピー"}
+                </button>
+              )}
               <div style={{ flex: 1 }} />
               {isOwner && (
                 <>
@@ -209,7 +227,7 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
                   </button>
                   {confirming ? (
                     <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <button onClick={() => onDelete(rec)} disabled={busy}
+                      <button onClick={() => onDelete?.(rec)} disabled={busy}
                         style={{ background: "var(--shu)", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "7px 14px", letterSpacing: "0.1em" }}>
                         {busy ? "削除中…" : "削除する"}
                       </button>
