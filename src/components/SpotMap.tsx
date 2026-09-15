@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type * as LType from "leaflet";
+import { addBaseLayers } from "@/lib/tiles";
 
 type Props = {
   lat: number;
@@ -28,14 +29,7 @@ export default function SpotMap({ lat, lng, name, dark = false }: Props) {
       map.setView([lat, lng], 13);
       mapRef.current = map;
 
-      const tileUrl = dark
-        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-
-      L.tileLayer(tileUrl, {
-        maxZoom: 18,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      }).addTo(map);
+      addBaseLayers(L, map, dark ? "std" : "pale");
 
       const icon = L.divIcon({
         className: "",

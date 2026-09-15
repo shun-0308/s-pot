@@ -281,7 +281,7 @@ function ItemRow({ item, idx, total, busy, onMove, onRemove, onSaveField, onSave
           {locOpen && (
             <div style={{ marginTop: 10 }}>
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                <input style={{ ...inputStyle, padding: "8px 10px", fontSize: 13 }} placeholder="地名・住所で移動（例: 清水寺）" value={gq}
+                <input style={{ ...inputStyle, padding: "8px 10px", fontSize: 13 }} placeholder="地名・住所・座標（例: 清水寺 / 34.9949, 135.7850）" value={gq}
                   onChange={(e) => setGq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runGeo()} />
                 <button onClick={runGeo} disabled={gbusy} style={{ ...primaryBtn, whiteSpace: "nowrap" }}>{gbusy ? "…" : "検索"}</button>
               </div>
@@ -468,7 +468,7 @@ function AddItemModal({ records, favoriteRecords, clips, existingRecordIds, onCl
           {tab === "search" && (
             <>
               <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <input style={inputStyle} placeholder="カフェ・観光地・住所などで検索" value={searchQ}
+                <input style={inputStyle} placeholder="カフェ・観光地・住所・座標で検索" value={searchQ}
                   onChange={(e) => setSearchQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runSearch()} />
                 <button onClick={runSearch} disabled={searching} style={{ ...primaryBtn, whiteSpace: "nowrap" }}>{searching ? "…" : "検索"}</button>
               </div>

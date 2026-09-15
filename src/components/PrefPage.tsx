@@ -207,6 +207,7 @@ export default function PrefPage({
         {/* CTA */}
         {adding ? (
           <RecordForm title={`${pref.name}の記録`} initial={formInitial} busy={busy}
+            regionName={pref.name}
             onSubmit={onCreate} onCancel={onCancelAdd} />
         ) : (
           <button onClick={onStartAdd}

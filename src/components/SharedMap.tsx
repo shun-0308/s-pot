@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type * as LType from "leaflet";
+import { addBaseLayers } from "@/lib/tiles";
 import type { RecordWithPhotos } from "@/lib/records";
 
 type Props = {
@@ -35,11 +36,7 @@ export default function SharedMap({ records, onSelect, height = 360 }: Props) {
       map.attributionControl.setPrefix(false);
       mapRef.current = map;
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        maxZoom: 18,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      }).addTo(map);
+      addBaseLayers(L, map);
 
       markersRef.current = L.layerGroup().addTo(map);
 

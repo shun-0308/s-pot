@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type * as LType from "leaflet";
+import { addBaseLayers } from "@/lib/tiles";
 
 // プランの行き先を「番号つきピン＋順路の線」で地図に表示する。
 // スポット同士の位置関係がパッと分かり、無理のない順番か確認できる。
@@ -36,11 +37,7 @@ export default function PlanMap({ points, onSelect, height = 320 }: Props) {
       const map = L.map(divRef.current, { zoomControl: true });
       map.attributionControl.setPrefix(false);
       mapRef.current = map;
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        maxZoom: 18,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      }).addTo(map);
+      addBaseLayers(L, map);
       layerRef.current = L.layerGroup().addTo(map);
       draw(L);
       requestAnimationFrame(() => {

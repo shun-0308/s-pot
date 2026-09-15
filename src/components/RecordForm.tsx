@@ -6,6 +6,7 @@ import type { RecordWithPhotos } from "@/lib/records";
 import type { Visibility, ScoutInfo } from "@/lib/supabase";
 import { PREFECTURES } from "@/lib/prefectures";
 import { geocodeCandidates, type GeoCandidate } from "@/lib/geocode";
+import { parseLatLngInput, isUnresolvableMapUrl } from "@/lib/geo-input";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ssr: false,
@@ -28,9 +29,45 @@ export type FormValues = {
   lng?: number | null; // 〃 経度
 };
 
+// ⚠️ この3つの語彙は src/lib/scout-ai.ts の同名定数と必ず一致させること。
+//    AIの出力を responseSchema の enum でこの語彙に縛っているため、片方だけ変えると
+//    チップが一つも選択状態にならなくなる。
 const SCOUT_TIMES = ["朝焼け", "午前", "午後", "夕暮れ", "夜景"];
 const SCOUT_TRIPOD = ["可", "条件付き", "不可"];
 const SCOUT_PERMIT = ["不要", "要確認", "要申請"];
+
+// AI下書きの結果メッセージ用のラベル
+const SCOUT_LABEL: Partial<Record<keyof ScoutInfo, string>> = {
+  best_time: "ベスト時間帯",
+  tripod: "三脚",
+  permit: "撮影許可",
+  light: "光のメモ",
+  access: "駐車場・アクセス",
+  notes: "機材・混雑",
+};
+
+// /api/scout の応答（周辺の実データ + AI下書き）
+type NearbyPlace = {
+  kind: "station" | "parking" | "toilet" | "convenience";
+  name: string;
+  distance_m: number;
+  fee?: boolean | null;
+  detail?: string | null;
+};
+type ScoutApiResponse = {
+  scout: ScoutInfo | null;
+  places?: NearbyPlace[];
+  source?: string;
+  cached?: boolean;
+  note?: string | null;
+  error?: string;
+};
+const PLACE_ICON: Record<NearbyPlace["kind"], string> = {
+  station: "🚉",
+  parking: "🅿️",
+  toilet: "🚻",
+  convenience: "🏪",
+};
 
 // 空のロケハン情報はnullに正規化
 const cleanScout = (s: ScoutInfo): ScoutInfo | null => {
@@ -50,6 +87,7 @@ type Props = {
   existing?: RecordWithPhotos | null; // 編集時(既存写真の表示用)
   prefSelectable?: boolean; // 都道府県を選び直せるようにする(日本の記録の編集)
   jpOnly?: boolean; // 住所検索を日本国内に絞る(日本の記録)。海外はfalse
+  regionName?: string | null; // 都道府県名/国名。同名地名の取り違えを防ぐ検索ヒント
   busy: boolean;
   onSubmit: (v: FormValues) => void;
   onCancel: () => void;
@@ -82,7 +120,7 @@ const Lbl = ({ children, req }: { children: React.ReactNode; req?: boolean }) =>
   </div>
 );
 
-export default function RecordForm({ title, initial, existing, prefSelectable, jpOnly = true, busy, onSubmit, onCancel }: Props) {
+export default function RecordForm({ title, initial, existing, prefSelectable, jpOnly = true, regionName = null, busy, onSubmit, onCancel }: Props) {
   const isEdit = !!existing;
   const [v, setV] = useState<FormValues>(() => {
     // 新規作成時のみ下書きを復元
@@ -118,26 +156,65 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
   const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ロケハンAI下書き(/api/scout)
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const [aiPlaces, setAiPlaces] = useState<NearbyPlace[]>([]);
+
   const setCoords = (lat: number, lng: number) => setV((p) => ({ ...p, lat, lng }));
+  // 住所検索から座標が入ったときに地図を寄せるズーム。
+  // 町名レベルの代表点(area)で寄りすぎると本当の場所を探せないので広めにする。
+  const [focusZoom, setFocusZoom] = useState<number | undefined>(undefined);
   const clearCoords = () => { setV((p) => ({ ...p, lat: null, lng: null })); setGeoMsg(null); setCandidates([]); };
 
   // 候補を選ぶ → ピン設置
   const pickCandidate = (c: GeoCandidate) => {
+    const area = c.precision === "area";
+    setFocusZoom(area ? 15 : 17);
     setCoords(+c.lat.toFixed(6), +c.lon.toFixed(6));
     setCandidates([]);
-    setGeoMsg("📍 ピンを置きました。ズレていれば地図でドラッグして微調整できます");
+    setGeoMsg(
+      area
+        ? "⚠️ これは「この一帯の代表点」です（番地まで特定できる住所ではないため、数百mずれることがあります）。地図の十字を目的地に合わせて「中央にピンを置く」で直してください"
+        : "📍 ピンを置きました。ズレていれば地図でドラッグして微調整できます"
+    );
   };
+
+  // 検索のヒントに使う地域名。フォームで都道府県を選び直せる場合はそちらを優先する。
+  const prefHint =
+    (prefSelectable && v.pref_code
+      ? PREFECTURES.find((p) => p.id === v.pref_code)?.name ?? null
+      : null) ?? regionName;
 
   // 住所/場所名で検索 → 候補を一覧表示(Googleマップの検索窓のように選べる)
   const searchByText = async () => {
     const q = (v.address.trim() || v.name.trim());
     if (!q) { setGeoMsg("先に住所か場所の名前を入力してください"); return; }
+
+    // 「34.629792, 135.693866」や度分秒、GoogleマップのURLが貼られていたら
+    // 検索する必要がない。ズレようのない座標なのでそのまま置く。
+    const pasted = parseLatLngInput(q);
+    if (pasted) {
+      setFocusZoom(17);
+      setCoords(pasted.lat, pasted.lng);
+      setCandidates([]);
+      setGeoMsg(`📍 座標をそのまま指定しました（${pasted.lat.toFixed(6)}, ${pasted.lng.toFixed(6)}）`);
+      return;
+    }
+    if (isUnresolvableMapUrl(q)) {
+      setGeoMsg("この短縮URLには座標が入っていません。一度ブラウザで開いて、表示された「34.6298, 135.6939」のような数字をコピーして貼り付けてください");
+      return;
+    }
+
     setGeoBusy(true);
     setGeoMsg(null);
     setCandidates([]);
     try {
-      const list = await geocodeCandidates(q, { jpOnly });
-      if (list.length === 0) setGeoMsg("見つかりませんでした。地図をタップしてピンを置いてください");
+      const list = await geocodeCandidates(q, { jpOnly, pref: prefHint });
+      if (list.length === 0)
+        // OpenStreetMap には載っていない施設（日本の公共施設や個人店に多い）。
+        // 精神論ではなく、確実に当たる手順をそのまま案内する。
+        setGeoMsg("見つかりませんでした（無料の地図データに載っていない場所です）。Googleマップでその場所を長押し → 出てきた「34.629792, 135.693866」のような数字をコピーして、この欄に貼って再検索すると確実です");
       else if (list.length === 1) pickCandidate(list[0]);
       else { setCandidates(list); setGeoMsg("候補から選んでください（タップでピン設置）"); }
     } finally {
@@ -167,6 +244,61 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
 
   const setScout = (k: keyof ScoutInfo, val: string | undefined) =>
     setV((p) => ({ ...p, scout: { ...p.scout, [k]: val } }));
+
+  // AIでロケハン下書きを作る。
+  // 事実(駅・駐車場)はサーバー側で地図APIから取得したものだけを使うので、施設名は捏造されない。
+  // 既に入力済みの欄は上書きしない（書いたメモを消されるのが一番困るため）。
+  const runScoutAI = async () => {
+    if (v.lat == null || v.lng == null) {
+      setAiMsg("先に地図でピンを置いてください（周辺の駅・駐車場を調べるのに座標が必要です）");
+      return;
+    }
+    setAiBusy(true);
+    setAiMsg(null);
+    try {
+      const res = await fetch("/api/scout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: v.lat,
+          lng: v.lng,
+          name: v.name.trim() || v.address.trim(),
+          address: v.address.trim() || null,
+        }),
+      });
+      const data = (await res.json()) as ScoutApiResponse;
+      setAiPlaces(data.places ?? []);
+
+      if (!data.scout) {
+        setAiMsg(data.error ?? data.note ?? "下書きを作れませんでした");
+        return;
+      }
+
+      // 空欄だけ埋める
+      const filled: string[] = [];
+      setV((p) => {
+        const next = { ...p.scout };
+        (Object.keys(data.scout!) as (keyof ScoutInfo)[]).forEach((k) => {
+          const val = data.scout![k];
+          if (val && !next[k]?.trim()) {
+            next[k] = val;
+            filled.push(SCOUT_LABEL[k] ?? k);
+          }
+        });
+        return { ...p, scout: next };
+      });
+
+      setAiMsg(
+        filled.length
+          ? `${filled.join("・")} に下書きを入れました。内容は必ずご確認ください`
+          : "すべて入力済みだったので上書きしませんでした（消したい欄を空にして再実行できます）",
+      );
+    } catch {
+      setAiMsg("通信に失敗しました。時間をおいてお試しください");
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const Chip = ({ k, val }: { k: keyof ScoutInfo; val: string }) => {
     const on = v.scout[k] === val;
@@ -275,8 +407,9 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
         </>
       )}
       <Lbl>住所・場所名</Lbl>
-      <input style={inputStyle} placeholder="例: 東京駅 / 横浜市金沢区 八景島 — 地図の位置判定に使います" value={v.address}
-        onChange={(e) => setV((p) => ({ ...p, address: e.target.value }))} />
+      <input style={inputStyle} placeholder="例: 東京駅 / 八景島シーパラダイス / 34.629792, 135.693866" value={v.address}
+        onChange={(e) => setV((p) => ({ ...p, address: e.target.value }))}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchByText(); } }} />
 
       {/* 地図で位置を指定(手動ピン) */}
       <div style={{ marginBottom: 12 }}>
@@ -305,14 +438,16 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
                   borderTop: i ? "1px solid var(--hairline)" : "none", background: "transparent", cursor: "pointer",
                   fontFamily: "inherit", fontSize: 12.5, color: "var(--ink)", lineHeight: 1.5 }}>
                 <span style={{ color: "var(--shu)", marginRight: 6 }}>📍</span>{c.label}
+                {c.precision === "area" && (
+                  <span style={{ marginLeft: 6, fontSize: 10.5, color: "var(--ink-faint)", border: "1px solid var(--hairline)", padding: "1px 5px", whiteSpace: "nowrap" }}>
+                    およその位置
+                  </span>
+                )}
               </button>
             ))}
           </div>
         )}
-        <LocationPicker lat={v.lat ?? null} lng={v.lng ?? null} onChange={setCoords} />
-        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 5, lineHeight: 1.7 }}>
-          地図を<b>タップ</b>でピンを設置・<b>ドラッグ</b>で微調整できます。住所で出ない場所もこれで確実に地図へ載ります。
-        </div>
+        <LocationPicker lat={v.lat ?? null} lng={v.lng ?? null} onChange={setCoords} focusHint={prefHint} jpOnly={jpOnly} focusZoom={focusZoom} />
         {geoMsg && (
           <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 5, lineHeight: 1.6 }}>{geoMsg}</div>
         )}
@@ -380,6 +515,44 @@ export default function RecordForm({ title, initial, existing, prefSelectable, j
               閉じる
             </button>
           </div>
+
+          {/* AI下書き。周辺の駅・駐車場は地図APIの実データを使うので施設名は捏造されない */}
+          <button onClick={runScoutAI} disabled={aiBusy}
+            style={{ width: "100%", marginTop: 9, padding: "9px 12px", fontSize: 11.5, fontFamily: "inherit",
+              border: "1px solid var(--shu)", background: "transparent", color: "var(--shu)",
+              cursor: aiBusy ? "wait" : "pointer", opacity: aiBusy ? 0.55 : 1, letterSpacing: "0.06em", minHeight: 0 }}>
+            {aiBusy ? "周辺を調べています…" : "✨ AIで下書きする（空欄のみ）"}
+          </button>
+
+          {aiMsg && (
+            <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.6, color: "var(--ink-soft)" }}>
+              {aiMsg}
+            </div>
+          )}
+
+          {aiPlaces.length > 0 && (
+            <details style={{ marginTop: 7 }}>
+              <summary style={{ fontSize: 10.5, color: "var(--ink-faint)", cursor: "pointer", letterSpacing: "0.04em" }}>
+                根拠にした周辺データ（{aiPlaces.length}件）
+              </summary>
+              <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: 1.75, color: "var(--ink-soft)" }}>
+                {aiPlaces.map((p, i) => (
+                  <li key={`${p.name}-${i}`} style={{ display: "flex", gap: 6 }}>
+                    <span style={{ flexShrink: 0 }}>{PLACE_ICON[p.kind]}</span>
+                    <span>
+                      {p.name}
+                      <span style={{ color: "var(--ink-faint)" }}>
+                        {` ${p.distance_m}m`}
+                        {p.fee === true ? " / 有料" : p.fee === false ? " / 無料" : ""}
+                        {p.detail ? ` / ${p.detail}` : ""}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
           <ScoutCap>ベスト時間帯</ScoutCap>
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
             {SCOUT_TIMES.map((t) => <Chip key={t} k="best_time" val={t} />)}
