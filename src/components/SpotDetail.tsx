@@ -29,10 +29,13 @@ export default function SpotDetail({ backLabel, captionText, rec, busy, isOwner 
   const [viewer, setViewer] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // 公開リンク（visibility=public のとき所有者が共有できる）をコピー
+  // 公開リンク（visibility=public のとき所有者が共有できる）をコピー。
+  // localhost で開発中でも「本番URL(NEXT_PUBLIC_APP_URL)」で共有リンクを作る
+  // （window.location.origin だと localhost:3000 等になり他人が開けないため）。
   const copyShareLink = async () => {
+    const base = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, "");
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/s/${rec.id}`);
+      await navigator.clipboard.writeText(`${base}/s/${rec.id}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch { /* クリップボード不可の環境では無視 */ }
